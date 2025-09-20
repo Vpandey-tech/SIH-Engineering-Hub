@@ -34,7 +34,7 @@ const features = [
 
 const stats = [
   { number: "50K+", label: "Active Engineers" },
-  { number: "10K+", label: "Study Resources" },
+  { number: "100+", label: "Study Resources" },
   { number: "95%", label: "Success Rate" },
   { number: "24/7", label: "AI Support" },
 ];
@@ -77,7 +77,7 @@ const Index = () => {
           {/* Badge */}
           <div className="inline-flex items-center gap-2 bg-white/90 dark:bg-slate-800/90 border border-white/30 dark:border-slate-700 rounded-full px-6 py-2 mb-8 shadow-xl backdrop-blur-md">
             <Star className="w-4 h-4 text-yellow-500 fill-current" />
-            <span className="text-sm font-medium text-slate-800 dark:text-slate-200">Trusted by 50,000+ Engineers</span>
+            <span className="text-sm font-medium text-slate-800 dark:text-slate-200">Trusted by Aluminis</span>
           </div>
 
           {/* Main Heading */}

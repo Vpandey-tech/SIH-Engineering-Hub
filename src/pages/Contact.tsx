@@ -182,44 +182,6 @@ const ContactUs: React.FC = () => {
             </div>
 
             {/* Team Section */}
-            {/* <div className="mt-20 bg-[#f7f8fa] text-center">
-                <h2 className="text-3xl font-bold text-gray-800 mb-10">
-                    MEET OUR BEST TEAM
-                </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10 place-items-center">
-                    {[
-                        { name: "Vivek Pandey", img: "../images/vivek.avif", link: "https://vp5846113.wixstudio.com/portfolio"},
-                        { name: "Omkar Chandra", img: "../images/Omkar.jpg" },
-                        { name: "Shreyansh Rai", img: "../images/Shreyansh1.jpg" },
-                        { name: "Sagar Gupta", img: "../images/Sagar.jpg" },
-                        { name: "Zaeem Pathan", img: "/images/team4.jpg" },
-                        { name: "Taruna Gupta", img: "/images/team4.jpg" },
-                    ].map((member) => (
-                        <div
-                            key={member.name}
-                            className="transition-transform duration-300 hover:scale-105"
-                        >
-                            <a
-                                key={member.name}
-                                href={member.link}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="transition-transform duration-300 hover:scale-105 text-center"
-                            >
-                            <img
-                                src={member.img}
-                                alt={member.name}
-                                className="w-40 h-40 object-cover rounded-full shadow-lg transition-shadow duration-300 hover:shadow-xl"
-                                loading="lazy"
-                            />
-                            <p className="mt-4 text-lg font-semibold text-gray-800 hover:text-purple-600 hover:underline transition duration-300 cursor-pointer">
-                                {member.name}
-                            </p>
-                            </a>
-                        </div>
-                    ))}
-                </div>
-            </div> */}
             < OurAim />
         </section>
     );

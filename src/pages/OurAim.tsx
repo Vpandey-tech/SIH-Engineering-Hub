@@ -19,35 +19,35 @@ const teamMembers: TeamMember[] = [
   },
   {
     name: "Omkar Chandra",
-    img: "../images/Omkar.jpg",
+    img: "../images/Omkar1.png",
     role: "Frontend Developer Intern",
     description:
       "Frontend specialist crafting exceptional user experiences and interface designs for our platform.",
   },
   {
     name: "Shreyansh Rai",
-    img: "../images/Shreyansh1.jpg",
+    img: "../images/Shreyansh2.png",
     role: "MERN Stack Developer Intern",
     description:
       "Full-stack engineer delivering end-to-end application development excellence",
   },
   {
     name: "Sagar Gupta",
-    img: "../images/Sagar.jpg",
+    img: "../images/Sagar1.png",
     role: "Software Tester",
     description:
       "Cybersecurity expert ensuring robust protection and security compliance across all platforms",
   },
   {
     name: "Zaeem Pathan",
-    img: "/images/team4.jpg",
+    img: "../images/Zaeem.png",
     role: "Data Scientist Intern",
     description:
       "Zaeem assists in analyzing large datasets, helping the team make informed decisions",
   },
   {
     name: "Taruna Gupta",
-    img: "/images/team4.jpg",
+    img: "../images/Taruna1.png",
     role: "Marketing & Presentation Expert",
     description:
       "Taruna crafts compelling presentations and develops marketing strategies",
