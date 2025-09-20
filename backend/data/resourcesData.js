@@ -1,0 +1,167 @@
+export  const resourcesData = {
+  "First Year": {
+    Syllabus: [
+      { name: "Syllabus Folder", url: "https://drive.google.com/drive/u/2/folders/1-jxLKfK72lmU2fSUYMtvrl6dlpkIclPs" },
+    ],
+    Pyq: {
+      Sem1: "https://drive.google.com/drive/u/2/folders/10BI1nHg1mTeDYrREZz28DAcrHvHu5y-2",
+      Sem2: "https://drive.google.com/drive/u/2/folders/10Cr5_12J4Y_YBo92_PBX3SB3xwkBlGjs",
+      Sem3: "",
+      Sem4: "",
+      Sem5: "",
+      Sem6: "",
+      Sem7: "",
+      Sem8: "",
+    },
+    MostImportant: {
+      Sem1: "https://drive.google.com/drive/u/2/folders/10BI1nHg1mTeDYrREZz28DAcrHvHu5y-2",
+      Sem2: "YOUR_DRIVE_LINK_HERE",
+      Sem3: "",
+      Sem4: "",
+      Sem5: "",
+      Sem6: "",
+      Sem7: "",
+      Sem8: "",
+    },
+  },
+  "Mechanical": {
+    Syllabus: [
+      { name: "Syllabus Folder - Sem 3", url: "https://drive.google.com/drive/u/2/folders/12agsJKmWnAv_jXxVikzXSYLioxUKkF2r" },
+      { name: "Syllabus Folder - Sem 4", url: "https://drive.google.com/drive/u/2/folders/12u3yWykQ3rhgCnADW6GFBIETicSsU2rv" },
+      { name: "Syllabus Folder - Sem 5", url: "https://drive.google.com/drive/u/2/folders/13j4ca7d5ep1gFrphlT5T5xW8M25rPE9p" },
+      { name: "Syllabus Folder - Sem 6", url: "https://drive.google.com/drive/u/2/folders/14AFbqqZYLVC4XkSzexAGQRaNG7tQyvwI" },
+      { name: "Syllabus Folder - Sem 7", url: "https://drive.google.com/drive/u/2/folders/11iUWFt8ZdmkACXJh1fYTSe7sE2RtPcnL" },
+      { name: "Syllabus Folder - Sem 8", url: "https://drive.google.com/drive/u/2/folders/11xEkvHQh3jToOgok_QfXbvljITLO5dmF" },
+    ],
+    Pyq: {
+      Sem3: "https://drive.google.com/drive/u/2/folders/12Lkn7SaoROQRHz7AQ4ZTDEY44h9iSABY",
+      Sem4: "https://drive.google.com/drive/u/2/folders/12kCL0KpM9aJWWGKwVuQdQus7mx7jKL7K",
+      Sem5: "https://drive.google.com/drive/u/2/folders/13bXy50wtYgGHdeK9AlfQPK1GamzrYjYv",
+      Sem6: "https://drive.google.com/drive/u/2/folders/13yzRHhzdgsk3KFV7Sy1QB_Bi73NtgHUd",
+      Sem7: "https://drive.google.com/drive/u/2/folders/11b1eBQDsNqnhX2a6123-BEZEF_6ZVWpA",
+      Sem8: "https://drive.google.com/drive/u/2/folders/11p5fIABmNiGryl3X-7jVpiRo9ZDZix0q",
+    },
+    MostImportant: {
+      Sem1: "YOUR_DRIVE_LINK_HERE",
+      Sem2: "YOUR_DRIVE_LINK_HERE",
+      Sem3: "",
+      Sem4: "",
+      Sem5: "",
+      Sem6: "",
+      Sem7: "",
+      Sem8: "",
+    },
+  },
+  "Computer Engineering": {
+    Syllabus: [
+      { name: "Syllabus Folder - Sem 3", url: "https://drive.google.com/drive/u/2/folders/11zQP05pCbPjCx5rP6xgdZgkquz8EJ6yf" },
+      { name: "Syllabus Folder - Sem 4", url: "https://drive.google.com/drive/u/2/folders/1N6pUJNMHOpDo9PFbEg-Vdzu5zgFAhefa" },
+      { name: "Syllabus Folder - Sem 5", url: "https://drive.google.com/drive/u/2/folders/1NGhP8k228gPLv7iEDjRo6u5CFqyPFAjH" },
+      { name: "Syllabus Folder - Sem 6", url: "https://drive.google.com/drive/u/2/folders/1NIIjZ0egzLujfrr9e_qTrxuxriLhqEu4" },
+      { name: "Syllabus Folder - Sem 7", url: "https://drive.google.com/drive/u/2/folders/1PydwRa6dWzR5brHUv6H3tqqaiFnEb3oH" },
+      { name: "Syllabus Folder - Sem 8", url: "https://drive.google.com/drive/u/2/folders/1QD5UbevNNeJwdlPzhs0QPjxEQiCL1O1w" },
+    ],
+    Pyq: {
+      Sem3: "https://drive.google.com/drive/u/2/folders/11xO30eGebuP00S-7BhblNgZWo9VZ86He",
+      Sem4: "https://drive.google.com/drive/u/2/folders/1MxKmUm5v2I0ccJ_mNIVz5rrZGcagCsNz",
+      Sem5: "https://drive.google.com/drive/u/2/folders/1N8KxpCFW00yJz4qHR4KyDdjPSUfAiQu2",
+      Sem6: "https://drive.google.com/drive/u/2/folders/1NHYG16Lgsr3LwezoKfz0VuD7bEBcaV3P",
+      Sem7: "https://drive.google.com/drive/u/2/folders/1PvWdl0qLnIkwLZvRTrpcCyoV4DBKcArS",
+      Sem8: "https://drive.google.com/drive/u/2/folders/1Q29fVOLwJoMMTxzD0yrLhK1sx-oEnBEp",
+    },
+    MostImportant: {
+      Sem1: "YOUR_DRIVE_LINK_HERE",
+      Sem2: "YOUR_DRIVE_LINK_HERE",
+      Sem3: "",
+      Sem4: "",
+      Sem5: "",
+      Sem6: "",
+      Sem7: "",
+      Sem8: "",
+    },
+  },
+  "IT": {
+    Syllabus: [
+      { name: "Syllabus Folder - Sem 3", url: "https://drive.google.com/drive/u/2/folders/1ZKhcA91kjXSrrOrd7-EcCxQZzN9JX9En" },
+      { name: "Syllabus Folder - Sem 4", url: "https://drive.google.com/drive/u/2/folders/1ZoaNWKRcEVFcHBQkz7sByyFtmkSorBe7" },
+      { name: "Syllabus Folder - Sem 5", url: "https://drive.google.com/drive/u/2/folders/1_3iiPVUZ1E3tV5sZcjs4VuZR-9TtLaOa" },
+      { name: "Syllabus Folder - Sem 6", url: "https://drive.google.com/drive/u/2/folders/1_7qBttRq3JoEZl6Gt1lKxga0V887edM0" },
+      { name: "Syllabus Folder - Sem 7", url: "https://drive.google.com/drive/u/2/folders/1_NTka2KhrOkQGeWbAuNTnxyplgbrZ02G" },
+      { name: "Syllabus Folder - Sem 8", url: "https://drive.google.com/drive/u/2/folders/1__VLcindhL3_8R00tveK1xWTTgxWSqw4" },
+    ],
+    Pyq: {
+      Sem3: "https://drive.google.com/drive/u/2/folders/1ZJyOBxuesAj9-T6G5ailmX1Cd6_yZ9uB",
+      Sem4: "https://drive.google.com/drive/u/2/folders/1ZPOdIAAThO9-YDScr4tcNQIExsHtBqGY",
+      Sem5: "https://drive.google.com/drive/u/2/folders/1ZyhEgzGgqVoAJN-x6yduKp-_5nf4TnHq",
+      Sem6: "https://drive.google.com/drive/u/2/folders/1_6btSFhKSeT35LCXTOfaMiXT6X3IIACJ",
+      Sem7: "https://drive.google.com/drive/u/2/folders/1_MUYazZ0RVCIcwr07xiuyu4KY5XV__as",
+      Sem8: "https://drive.google.com/drive/u/2/folders/1_TaYcuQj2Ist23h_6KLbyaOj0fgStbxe",
+    },
+    MostImportant: {
+      Sem1: "YOUR_DRIVE_LINK_HERE",
+      Sem2: "YOUR_DRIVE_LINK_HERE",
+      Sem3: "",
+      Sem4: "",
+      Sem5: "",
+      Sem6: "",
+      Sem7: "",
+      Sem8: "",
+    },
+  },
+  "EXTC": {
+    Syllabus: [
+      { name: "Syllabus Folder - Sem 3", url: "https://drive.google.com/drive/u/2/folders/PLACEHOLDER_SEM3" },
+      { name: "Syllabus Folder - Sem 4", url: "https://drive.google.com/drive/u/2/folders/PLACEHOLDER_SEM4" },
+      { name: "Syllabus Folder - Sem 5", url: "https://drive.google.com/drive/u/2/folders/PLACEHOLDER_SEM5" },
+      { name: "Syllabus Folder - Sem 6", url: "https://drive.google.com/drive/u/2/folders/PLACEHOLDER_SEM6" },
+      { name: "Syllabus Folder - Sem 7", url: "https://drive.google.com/drive/u/2/folders/PLACEHOLDER_SEM7" },
+      { name: "Syllabus Folder - Sem 8", url: "https://drive.google.com/drive/u/2/folders/PLACEHOLDER_SEM8" },
+    ],
+    Pyq: {
+      Sem3: "https://drive.google.com/drive/u/2/folders/PLACEHOLDER_SEM3_PYQ",
+      Sem4: "https://drive.google.com/drive/u/2/folders/PLACEHOLDER_SEM4_PYQ",
+      Sem5: "https://drive.google.com/drive/u/2/folders/PLACEHOLDER_SEM5_PYQ",
+      Sem6: "https://drive.google.com/drive/u/2/folders/PLACEHOLDER_SEM6_PYQ",
+      Sem7: "https://drive.google.com/drive/u/2/folders/PLACEHOLDER_SEM7_PYQ",
+      Sem8: "https://drive.google.com/drive/u/2/folders/PLACEHOLDER_SEM8_PYQ",
+    },
+    MostImportant: {
+      Sem1: "YOUR_DRIVE_LINK_HERE", 
+      Sem2: "YOUR_DRIVE_LINK_HERE",
+      Sem3: "",
+      Sem4: "",
+      Sem5: "",
+      Sem6: "",
+      Sem7: "",
+      Sem8: "",
+    },
+  },
+  "CSE": {
+    Syllabus: [
+      { name: "Syllabus Folder - Sem 3", url: "https://drive.google.com/drive/u/2/folders/1R3tvWCBN1W_W0jRpR7UbRESyRxZ3wo9M" },
+      { name: "Syllabus Folder - Sem 4", url: "https://drive.google.com/drive/u/2/folders/1R5z05c4g_hwzajz7f2Pq8pTjNtt2Lc-r" },
+      { name: "Syllabus Folder - Sem 5", url: "https://drive.google.com/drive/u/2/folders/1YN7UmdSimT8GEorRj9A4lVGkkb_KAsxV" },
+      { name: "Syllabus Folder - Sem 6", url: "https://drive.google.com/drive/u/2/folders/1Yq259cCJArX0QYfRaJBKaG18QJijUel1" },
+      { name: "Syllabus Folder - Sem 7", url: "https://drive.google.com/drive/u/2/folders/1PydwRa6dWzR5brHUv6H3tqqaiFnEb3oH" }, // Using Sem 7 from Computer Engineering as placeholder
+      { name: "Syllabus Folder - Sem 8", url: "https://drive.google.com/drive/u/2/folders/1QD5UbevNNeJwdlPzhs0QPjxEQiCL1O1w" }, // Using Sem 8 from Computer Engineering as placeholder
+    ],
+    Pyq: {
+      Sem3: "https://drive.google.com/drive/u/2/folders/1R1koJUzAgz21nbg-kuFZiZMxZjInrnua",
+      Sem4: "https://drive.google.com/drive/u/2/folders/1R56yNvhdVoMRsUb5DCSSr2g9N2vZHQ-F",
+      Sem5: "https://drive.google.com/drive/u/2/folders/1YKrdf8ejxTyUuTbBtVhmJCuq4vZnDghb",
+      Sem6: "https://drive.google.com/drive/u/2/folders/1YUx4GvteM3zZWK-5RaZUKFA01cfM15t3",
+      Sem7: "https://drive.google.com/drive/u/2/folders/1PvWdl0qLnIkwLZvRTrpcCyoV4DBKcArS", // Using Sem 7 from Computer Engineering as placeholder
+      Sem8: "https://drive.google.com/drive/u/2/folders/1Q29fVOLwJoMMTxzD0yrLhK1sx-oEnBEp", // Using Sem 8 from Computer Engineering as placeholder
+    },
+    MostImportant: {
+      Sem1: "YOUR_DRIVE_LINK_HERE", // Paste your Drive link for Sem 1 and Sem 2 here
+      Sem2: "YOUR_DRIVE_LINK_HERE", // Same link as Sem 1
+      Sem3: "",
+      Sem4: "",
+      Sem5: "",
+      Sem6: "",
+      Sem7: "",
+      Sem8: "",
+    },
+  },
+};
