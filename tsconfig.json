@@ -1,3 +1,23 @@
+// {
+//   "files": [],
+//   "references": [
+//     { "path": "./tsconfig.app.json" },
+//     { "path": "./tsconfig.node.json" }
+//   ],
+//   "compilerOptions": {
+//     "baseUrl": ".",
+//     "paths": {
+//       "@/*": ["./src/*"]
+//     },
+//     "noImplicitAny": false,
+//     "noUnusedParameters": false,
+//     "skipLibCheck": true,
+//     "allowJs": true,
+//     "noUnusedLocals": false,
+//     "strictNullChecks": false
+//   }
+// }
+
 {
   "files": [],
   "references": [
@@ -5,14 +25,22 @@
     { "path": "./tsconfig.node.json" }
   ],
   "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "lib": ["DOM", "ES2020"],
+    "jsx": "react-jsx",
+
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     },
+
+    "allowJs": true,
+    "skipLibCheck": true,
+
     "noImplicitAny": false,
     "noUnusedParameters": false,
-    "skipLibCheck": true,
-    "allowJs": true,
     "noUnusedLocals": false,
     "strictNullChecks": false
   }

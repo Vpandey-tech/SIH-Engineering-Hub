@@ -42,13 +42,15 @@ const ChatBubble = ({ role, content }: ChatBubbleProps) => {
   // ⚠️ Note: localStorage usage removed as per Claude.ai artifact restrictions
   // You can uncomment this in your local environment
   
-  useEffect(() => {
-    if (!content) return;
-    const stored = localStorage.getItem("chat_history");
-    const history = stored ? JSON.parse(stored) : [];
-    history.push({ role, content, timestamp: new Date().toISOString() });
-    localStorage.setItem("chat_history", JSON.stringify(history));
-  }, [role, content]);
+  // src/components/ChatBubble.tsx
+
+// useEffect(() => {
+//   if (!content) return;
+//   const stored = localStorage.getItem("chat_history");
+//   const history = stored ? JSON.parse(stored) : [];
+//   history.push({ role, content, timestamp: new Date().toISOString() });
+//   localStorage.setItem("chat_history", JSON.stringify(history));
+// }, [role, content]);
   
 
   return (

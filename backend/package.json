@@ -1,27 +1,45 @@
+
 {
-  "name": "engi-smart-study-backend",
-  "version": "1.0.0",
-  "description": "Backend for Engi Smart Study",
+  "name": "engineering-hub-backend",
+  "version": "2.0.0",
+  "description": "Backend for Engineering Hub with AI, Annotation & Voice Features",
   "main": "index.js",
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "test": "echo \"Tests coming soon\" && exit 0",
+    "build": "echo \"No build step required for Node.js\" && exit 0"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "engineering",
+    "education", 
+    "ai",
+    "gemini",
+    "annotation",
+    "voice",
+    "screen-sharing"
+  ],
+  "author": "Engineering Hub Team",
+  "license": "MIT",
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "compression": "^1.8.1",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "express-rate-limit": "^7.5.1",
     "firebase-admin": "^13.4.0",
-    "googleapis": "^150.0.1",
-    "multer": "^2.0.2"
+    "helmet": "^8.1.0",
+    "morgan": "^1.10.1",
+    "multer": "^2.0.2",
+    "sharp": "^0.33.5",
+    "nodemailer": "^7.0.3"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
