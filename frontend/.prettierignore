@@ -1,0 +1,9 @@
+
+node_modules
+dist
+build
+.next
+*.md
+*.yml
+*.yaml
+package-lock.json

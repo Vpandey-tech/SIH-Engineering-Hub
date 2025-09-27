@@ -1,125 +1,145 @@
-import { auth, db } from '../config/firebase.js';
-// import { doc, deleteDoc } from "firebase/firestore";
-import { transporter } from '../config/mailer.js';
-import { validateEmailDomain } from './email.controller.js'; // keep your helper here
+import { auth, db, admin } from '../config/firebase.js';
+import nodemailer from 'nodemailer';
+
+const transporter = (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)
+  ? nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT) || 587,
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    })
+  : null;
 
 export const signup = async (req, res) => {
   try {
     const { email, password, name } = req.body;
-    if (!email || !password || !name)
-      return res.status(400).json({ message: 'Email, password and name are required' });
+    if (!email || !password || !name) return res.status(400).json({ message: 'name, email, password required' });
 
-    await validateEmailDomain(email);
+    const finalRole = 'student';
 
-    try {
-      await auth.getUserByEmail(email);
-      return res.status(400).json({ message: 'Email already registered' });
-    } catch (e) {
-      if (e.code !== 'auth/user-not-found') throw e;
-    }
+    const userRecord = await auth.createUser({ email, password, displayName: name });
 
-    const user = await auth.createUser({ email, password, displayName: name });
-    const link = await auth.generateEmailVerificationLink(email);
+    await admin.auth().setCustomUserClaims(userRecord.uid, { role: finalRole });
 
-    await transporter.sendMail({
-      from: '"Engineering Hub" <engineeringhub0001@gmail.com>',
-      to: email,
-      subject: 'Verify Your Email',
-      html: `<p>Hello ${name}, click <a href="${link}">here</a> to verify.</p>`
+    await db.collection('users').doc(userRecord.uid).set({
+      name,
+      email,
+      role: finalRole,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    res.status(201).json({ message: 'Signup successful, check email', userId: user.uid });
+    const verificationLink = await auth.generateEmailVerificationLink(email);
+
+    if (transporter) {
+      const mailOptions = {
+        from: process.env.SMTP_FROM || '"Engineering Hub" <no-reply@engineeringhub>',
+        to: email,
+        subject: 'Verify your Engineering Hub account',
+        text: `Hello ${name},\nPlease verify your email: ${verificationLink}`,
+        html: `<p>Hello ${name},</p><p>Please verify your email by clicking <a href="${verificationLink}">here</a>.</p>`
+      };
+      await transporter.sendMail(mailOptions);
+      return res.status(201).json({ message: 'Signup successful. Verification email sent.', uid: userRecord.uid, role: finalRole });
+    } else {
+      return res.status(201).json({ message: 'Signup successful (dev). No SMTP configured — verification link returned.', uid: userRecord.uid, role: finalRole, verificationLink });
+    }
   } catch (err) {
-    res.status(400).json({ message: 'Signup failed', error: err.message });
+    console.error('signup error', err);
+    if (err.code === 'auth/email-already-exists' || err.message?.includes('already exists')) {
+      return res.status(400).json({ message: 'Email already in use' });
+    }
+    return res.status(500).json({ message: 'Signup failed', error: err.message });
   }
 };
 
-// ✅ Resend verification email
 export const resendVerification = async (req, res) => {
   try {
     const { email } = req.body;
-    if (!email) return res.status(400).json({ message: 'Email is required' });
+    if (!email) return res.status(400).json({ message: 'email required' });
+
+    const userRecord = await auth.getUserByEmail(email);
+    if (userRecord.emailVerified) return res.status(400).json({ message: 'Email already verified' });
 
     const link = await auth.generateEmailVerificationLink(email);
 
-    await transporter.sendMail({
-      from: '"Engineering Hub" <engineeringhub0001@gmail.com>',
-      to: email,
-      subject: 'Verify Your Email (Resend)',
-      html: `<p>Click <a href="${link}">here</a> to verify your email.</p>`
-    });
-
-    res.json({ message: 'Verification email resent successfully' });
-  } catch (error) {
-    console.error('Resend verification error:', error);
-    res.status(500).json({ message: 'Failed to resend verification email', error: error.message });
+    if (transporter) {
+      await transporter.sendMail({
+        from: process.env.SMTP_FROM || '"Engineering Hub" <no-reply@engineeringhub>',
+        to: email,
+        subject: 'Verify your Engineering Hub account',
+        text: `Please verify: ${link}`,
+        html: `<p>Please verify your email by clicking <a href="${link}">this link</a>.</p>`
+      });
+      return res.json({ message: 'Verification resent' });
+    } else {
+      return res.json({ message: 'Verification link (dev)', link });
+    }
+  } catch (err) {
+    console.error('resendVerification', err);
+    return res.status(500).json({ message: 'Failed to resend verification', error: err.message });
   }
 };
 
-// ✅ Login
 export const login = async (req, res) => {
   try {
     const { email } = req.body;
-    if (!email) return res.status(400).json({ message: 'Email is required' });
+    if (!email) return res.status(400).json({ message: 'email required' });
 
-    // Make sure user exists
     const userRecord = await auth.getUserByEmail(email);
-    if (!userRecord.emailVerified) {
-      return res.status(400).json({ message: 'Email not verified. Please verify first.' });
-    }
+    if (!userRecord.emailVerified) return res.status(403).json({ message: 'Please verify your email' });
 
-    // Track login in Firestore
     await db.collection('loggedInUsers').doc(userRecord.uid).set({
       email: userRecord.email,
       name: userRecord.displayName || '',
-      lastLogin: new Date()
+      loginTime: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    res.json({ message: 'Login successful', user: userRecord });
-  } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ message: 'Login failed', error: error.message });
+    return res.json({ message: 'OK', uid: userRecord.uid });
+  } catch (err) {
+    console.error('login error', err);
+    if (err.code === 'auth/user-not-found' || /no user record/u.test(err.message || '')) {
+      return res.status(400).json({ message: 'Please register first' });
+    }
+    return res.status(400).json({ message: 'Login failed', error: err.message });
   }
 };
 
-// ✅ Logout
 export const logout = async (req, res) => {
   try {
     const { uid } = req.body;
     if (!uid) return res.status(400).json({ message: 'User UID is required' });
-
     await db.collection('loggedInUsers').doc(uid).delete();
-    // await deleteDoc(doc(db, "loggedInUsers", uid));
-    res.json({ message: 'Logout successful' });
-  } catch (error) {
-    console.error('Logout error:', error);
-    res.status(500).json({ message: 'Logout failed', error: error.message });
+    return res.json({ message: 'Logout successful' });
+  } catch (err) {
+    console.error('logout error', err);
+    return res.status(500).json({ message: 'Logout failed', error: err.message });
   }
 };
 
-// ✅ Verify ID token
-export const verifyToken = async (req, res) => {
+export const me = async (req, res) => {
   try {
-    const token = req.params.token;
-    if (!token) return res.status(400).json({ message: 'Token is required' });
-
-    const decoded = await auth.verifyIdToken(token);
-    res.json({ message: 'Token is valid', uid: decoded.uid, email: decoded.email });
-  } catch (error) {
-    console.error('Verify token error:', error);
-    res.status(401).json({ message: 'Invalid or expired token', error: error.message });
+    if (!req.user) return res.status(401).json({ message: 'Not authenticated' });
+    const uid = req.user.uid;
+    const userDoc = await db.collection('users').doc(uid).get();
+    const profile = userDoc.exists ? userDoc.data() : null;
+    const claims = req.user.claims || {};
+    const role = claims.role || (profile?.role) || 'student';
+    return res.json({ uid, email: req.user.email, role, profile });
+  } catch (err) {
+    console.error('me error', err);
+    return res.status(500).json({ message: 'Failed', error: err.message });
   }
 };
 
-// ✅ Get all currently logged-in users
 export const getLoggedInUsers = async (req, res) => {
   try {
-    const snapshot = await db.collection('loggedInUsers').get();
-    const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    res.json(users);
-  } catch (error) {
-    console.error('Fetch logged-in users error:', error);
-    res.status(500).json({ message: 'Failed to fetch logged-in users', error: error.message });
+    const snap = await db.collection('loggedInUsers').get();
+    const users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    res.json({ users });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed', error: err.message });
   }
 };
-

@@ -1,19 +1,15 @@
-import {signupLimiter, resendLimiter} from '../controller/email.controller.js';
 import { Router } from 'express';
-// import rateLimit from 'express-rate-limit';
-import { signup, resendVerification, login, logout, verifyToken, getLoggedInUsers } from '../controller/auth.controller.js';
+import { signup, resendVerification, login, logout, me, getLoggedInUsers } from '../controller/auth.controller.js';
+import { verifyFirebaseToken, requireAdmin } from '../middlewares/verifyFirebaseToken.js';
 
+const router = Router();
 
-const AuthRouter = Router();
+router.post('/signup', signup);
+router.post('/resend-verification', resendVerification);
+router.post('/login', login);
+router.post('/logout', logout);
+router.get('/me', verifyFirebaseToken, me);
 
-// const signupLimiter = rateLimit({ windowMs: 24*60*60*1000, max:300 });
-// const resendLimiter = rateLimit({ windowMs: 5*60*1000, max:5 });
+router.get('/logged-in-users', verifyFirebaseToken, requireAdmin, getLoggedInUsers);
 
-AuthRouter.post('/signup', signupLimiter, signup);
-AuthRouter.post('/resend-verification', resendLimiter, resendVerification);
-AuthRouter.post('/login', login);
-AuthRouter.post('/logout', logout);
-AuthRouter.get('/verify/:token', verifyToken);
-AuthRouter.get('/logged-in-users', getLoggedInUsers);
-
-export default AuthRouter;
+export default router;

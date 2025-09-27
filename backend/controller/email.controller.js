@@ -1,9 +1,6 @@
 import dns from 'dns/promises';
 import rateLimit from 'express-rate-limit';
 
-/**
- * Rate limiters
- */
 export const signupLimiter = rateLimit({
   windowMs: 24 * 60 * 60 * 1000,       
   max: 300,                            
@@ -20,9 +17,6 @@ export const resendLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-/**
- * Trusted email providers list
- */
 const trustedDomains = [
   'gmail.com',
   'yahoo.com',
@@ -31,9 +25,6 @@ const trustedDomains = [
   'icloud.com',
 ];
 
-/**
- * Validate email domain.
- */
 export const validateEmailDomain = async (email) => {
   const domain = email.split('@')[1];
   if (!trustedDomains.includes(domain)) {
