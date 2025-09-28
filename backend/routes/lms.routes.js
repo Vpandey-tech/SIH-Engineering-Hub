@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { verifyFirebaseToken, requireAdmin } from '../middlewares/verifyFirebaseToken.js';
 import * as coursesCtrl from '../controller/courses.controller.js';
 import * as lectureCtrl from '../controller/lecture.controller.js';
+import lectureRouter from './lectures.routes.js';
 
 const router = Router();
 
@@ -14,6 +15,8 @@ router.delete('/courses/:id', verifyFirebaseToken, requireAdmin, coursesCtrl.del
 router.get('/admin/enrollments', verifyFirebaseToken, requireAdmin, coursesCtrl.getEnrollments);
 
 router.post('/courses/:courseId/enroll', verifyFirebaseToken, coursesCtrl.enrollCourse);
+
+router.use('/lectures', lectureRouter);
 
 router.get('/users/me/progress', verifyFirebaseToken, lectureCtrl.listUserProgress);
 
