@@ -11,6 +11,7 @@ const AdminLectureForm: React.FC = () => {
   const [description, setDescription] = useState("");
   const [youtubeId, setYoutubeId] = useState("");
   const [loading, setLoading] = useState(false);
+  
 
   // Fetch lecture if editing
   useEffect(() => {
@@ -46,7 +47,7 @@ const AdminLectureForm: React.FC = () => {
         await API.post(`/lectures`, { title, description, youtubeId: cleanId, courseId });
         toast.success("Lecture created");
       }
-      navigate(`/admin/lms/courses/${courseId}`);
+      navigate(`/lms/courses`);
     } catch (err) {
       console.error(err);
       toast.error("Failed to save lecture");

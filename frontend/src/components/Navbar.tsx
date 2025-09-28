@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useContext } from "react";
 import { AuthContext } from "../App";
 import { signOut } from "firebase/auth";
-import { auth } from "../firebase";
+import { auth } from "../firebaseClient";
 import axios from "axios";
 import { toast } from "sonner";
 

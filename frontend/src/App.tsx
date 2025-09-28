@@ -1,11 +1,11 @@
 import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { createContext, useState, useEffect, useContext } from "react";
 import { auth, db } from "./firebaseClient";
 import { doc, getDoc } from "firebase/firestore";
+import { toast } from "sonner";
 
 import Navbar from "@/components/Navbar";
 
@@ -17,6 +17,7 @@ import NotFound from "./pages/NotFound";
 import ContactUs from "./pages/Contact";
 import OurAim from "./pages/OurAim";
 import GeminiStudyGuide from "./pages/GeminiStudyGuide";
+import MyCourses from "./pages/MyCourses";
 
 // === Existing LMS pages ===
 import CourseList from "./pages/CourseList";
@@ -68,11 +69,10 @@ const App = () => {
             const userData = userSnap.data();
             setRole(userData.role || "student");
           } else {
-            console.warn("User doc not found, defaulting to student role");
             setRole("student");
           }
         } catch (err) {
-          console.error("Error fetching user role from Firestore:", err);
+          console.error(err);
           setRole("student");
         }
       } else {
@@ -97,7 +97,6 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
-        <Sonner />
         <AuthContext.Provider value={{ user, setUser, role }}>
           <BrowserRouter>
             <Navbar />
@@ -115,6 +114,12 @@ const App = () => {
                 <Route
                   path="/dashboard"
                   element={user ? <Dashboard /> : <Navigate to="/login" replace />}
+                />
+
+                {/* My Courses */}
+                <Route
+                  path="/my-courses"
+                  element={user ? <MyCourses /> : <Navigate to="/login" replace />}
                 />
 
                 {/* AI Study Guide */}
@@ -155,7 +160,7 @@ const App = () => {
                   }
                 />
 
-                {/* === Admin Course Management === */}
+                {/* Admin Course Management */}
                 <Route
                   path="/admin/lms"
                   element={

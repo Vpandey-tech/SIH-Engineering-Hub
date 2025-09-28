@@ -1,20 +1,20 @@
-// src/utils/api.js
+// src/services/api.ts
 import axios from 'axios';
-import { auth } from '../firebaseClient.ts';
+import { auth } from '../firebaseClient';
 
-const api = axios.create({
-  baseURL:  'http://localhost:5000/api',
+const API = axios.create({
+  baseURL: 'http://localhost:5000/api', // backend URL
   headers: { 'Content-Type': 'application/json' },
 });
 
-// attach token to requests when available
-api.interceptors.request.use(async (config) => {
+// attach token automatically
+API.interceptors.request.use(async (config) => {
   const user = auth.currentUser;
   if (user) {
     const token = await user.getIdToken();
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
-}, (error) => Promise.reject(error));
+});
 
-export default api;
+export default API;

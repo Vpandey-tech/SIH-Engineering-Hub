@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { Newspaper, AlertTriangle, RefreshCw } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { db } from "../firebase"; // Import Firestore from your firebase.js
+import { db } from "../firebaseClient"; // Import Firestore from your firebase.js
 import { collection, getDocs, query, orderBy, limit } from "firebase/firestore";
 import { useAuthState } from 'react-firebase-hooks/auth'; // Add this
-import { auth } from '../firebase'; // Add this
+import { auth } from '../firebaseClient'; // Add this
 
 interface UpdateItem {
   title: string;

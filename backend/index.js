@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-=======
-
->>>>>>> 4ae34b81cea8fc11657419394d04f9fa84d401e0
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -11,17 +7,12 @@ import authRoutes from './routes/auth.routes.js';
 import resourcesRoutes from './routes/resources.routes.js';
 import configRoutes from './routes/config.routes.js';
 import geminiRoutes from './routes/geminiRoutes.js';
-<<<<<<< HEAD
 import LMSRoutes from './routes/lms.routes.js';
 import userRoutes from './routes/user.routes.js';
 import lectureRoutes from './routes/lectures.routes.js';
-=======
-import path from 'path';
-import { fileURLToPath } from 'url';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import compression from 'compression';
->>>>>>> 4ae34b81cea8fc11657419394d04f9fa84d401e0
 
 dotenv.config();
 const app = express();
@@ -88,14 +79,9 @@ app.get('/health', (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-<<<<<<< HEAD
-app.listen(PORT, () =>
-  console.log(`Server running on http://localhost:${PORT}`)
-);
-=======
+
 app.listen(PORT, () => {
   console.log(`🚀 Engineering Hub Server running on port ${PORT}`);
   console.log(`📱 Screen sharing enabled`);
   console.log(`🎤 Voice analysis ready`);
 });
->>>>>>> 4ae34b81cea8fc11657419394d04f9fa84d401e0

@@ -10,6 +10,7 @@ import { formatDistanceToNow } from "date-fns";
 import { AuthContext } from "../App";
 import API from "../services/api";
 import { auth } from "../firebaseClient";
+import { toast } from "@/components/ui/sonner"; // ✅ added for notifications
 
 type RecentActivityItem = {
   title: string;
@@ -17,7 +18,7 @@ type RecentActivityItem = {
 };
 
 const Dashboard: React.FC = () => {
-  const { user, role } = useContext(AuthContext); // ✅ only read from context
+  const { user, role } = useContext(AuthContext);
   const [isReady, setIsReady] = useState(false);
   const navigate = useNavigate();
   const { addActivity, loadActivity, clearAuthData } = useLocalStorage();
@@ -82,15 +83,27 @@ const Dashboard: React.FC = () => {
     navigate("/lms/courses");
   };
 
+  // ✅ updated to go to My Courses directly
   const goToContinueLearning = () => {
     addActivity("Opened Continue Learning");
-    navigate("/lms/courses");
+    navigate("/my-courses");
   };
 
   const goToAdminManage = () => {
     addActivity("Opened LMS Admin");
-    navigate("/admin/lms"); // ✅ client-side navigation only
+    navigate("/admin/lms");
   };
+
+  // ✅ helper to show toast after enrolling (call from other pages if needed)
+  useEffect(() => {
+    const enrolled = sessionStorage.getItem("enrolledCourse");
+    if (enrolled) {
+      toast.success(`Enrolled successfully in ${enrolled}`, {
+        description: "You can start learning in My Courses.",
+      });
+      sessionStorage.removeItem("enrolledCourse");
+    }
+  }, []);
 
   if (!user || !isReady) {
     return (
@@ -205,6 +218,7 @@ const Dashboard: React.FC = () => {
                   <BookOpen className="w-4 h-4" /> Browse Courses
                 </button>
 
+                {/* ✅ Continue Learning -> My Courses */}
                 <button
                   onClick={goToContinueLearning}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 rounded-md"

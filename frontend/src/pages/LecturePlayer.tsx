@@ -22,7 +22,7 @@ export default function LecturePlayer() {
   const [duration, setDuration] = useState<number | null>(null);
   const [completed, setCompleted] = useState(false);
 
-  const playerRef = useRef<ReactPlayer | null>(null);
+const playerRef = useRef<ReactPlayer>(null!);
   const lastSavedRef = useRef<number>(0);
 
   useEffect(() => {
@@ -34,6 +34,7 @@ export default function LecturePlayer() {
       .catch(() => toast.error("Failed to load lecture"))
       .finally(() => setLoading(false));
 
+    // Record view
     API.post(`/lectures/${lectureId}/view`).catch(console.error);
   }, [lectureId]);
 
@@ -75,32 +76,40 @@ export default function LecturePlayer() {
   if (loading) return <div className="p-6 text-center">Loading lecture…</div>;
   if (!lecture) return <div className="p-6 text-center">Lecture not found</div>;
 
-  const videoUrl = lecture.youtubeId
-    ? `https://www.youtube.com/watch?v=${lecture.youtubeId}`
-    : undefined;
+  const videoUrl = lecture.youtubeId ? `https://www.youtube.com/watch?v=${lecture.youtubeId}` : undefined;
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <Card className="rounded-2xl shadow-md flex flex-col md:flex-row gap-6 p-4 hover:shadow-lg transition">
         {/* Video */}
         <div className="relative w-full md:w-2/5 aspect-video rounded-lg overflow-hidden bg-black">
-          {videoUrl && (
+          {playing && videoUrl && (
             <ReactPlayer
               ref={playerRef}
               url={videoUrl}
-              playing={playing}
+              playing
               controls
               width="100%"
               height="100%"
               onProgress={handleProgress}
               onEnded={handleEnded}
-              onError={(e) => console.error("ReactPlayer error:", e)}
+              config={{
+                youtube: {
+                  playerVars: {
+                    modestbranding: 1,
+                    rel: 0,
+                    showinfo: 0,
+                    origin: window.location.origin,
+                  },
+                },
+              }}
             />
           )}
 
+          {/* Overlay before playing */}
           {!playing && lecture.thumbnailUrl && (
             <div
-              className="absolute inset-0 cursor-pointer flex items-center justify-center bg-black bg-opacity-50 hover:bg-opacity-30 transition"
+              className="absolute inset-0 cursor-pointer flex items-center justify-center transition"
               onClick={() => setPlaying(true)}
             >
               <img
@@ -108,11 +117,14 @@ export default function LecturePlayer() {
                 alt={lecture.title}
                 className="w-full h-full object-cover"
               />
-              <div className="absolute text-white text-6xl font-bold">▶</div>
+              <div className="absolute text-white text-6xl font-bold pointer-events-none">
+                ▶
+              </div>
             </div>
           )}
         </div>
 
+        {/* Details */}
         <div className="flex-1 flex flex-col justify-between">
           <div>
             <h1 className="text-2xl font-bold">{lecture.title}</h1>

@@ -1,14 +1,18 @@
-// src/pages/GeminiStudyGuide.tsx
-
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import ChatBubble from '@/components/ChatBubble';
+import VoiceManager from '@/components/VoiceManager';
+import AnnotationOverlay from '@/components/AnnotationOverlay';
+import AudioResponseManager from '@/components/AudioResponseManager';
+import FloatingWidget from '@/components/FloatingWidget';
+import ScreenShareManager from '@/components/ScreenShareManager';
+import WhiteScreen from '@/components/WhiteScreen';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   ArrowUp, Sparkles, Paperclip, X, PlusCircle, MessageSquare, 
-  Trash2, FileText, Image, Music, Video, File, ChevronDown,
-  Download, Copy, MoreVertical
+  Trash2, FileText, Image, Music, Video, File as FileIcon, ChevronDown,
+  Download, Copy, MoreVertical, Monitor, FileImage, Square, Edit3, Mic, MicOff
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -17,6 +21,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 // --- DATA STRUCTURES ---
 interface HistoryItem {
@@ -31,6 +36,20 @@ interface Conversation {
   createdAt: Date;
 }
 
+interface ScreenState {
+  isSharing: boolean;
+  mediaStream: MediaStream | null;
+  imageCapture: ImageCapture | null;
+}
+
+interface VoiceState {
+  isListening: boolean;
+  currentTranscript: string;
+  finalTranscript: string;
+  audioBlob: Blob | null;
+  isProcessing: boolean;
+}
+
 // --- FILE TYPE UTILITIES ---
 const getFileIcon = (mimeType: string) => {
   if (mimeType.startsWith('image/')) return <Image size={16} className="text-blue-500" />;
@@ -40,7 +59,7 @@ const getFileIcon = (mimeType: string) => {
   if (mimeType.includes('powerpoint') || mimeType.includes('presentation')) return <FileText size={16} className="text-orange-600" />;
   if (mimeType.startsWith('audio/')) return <Music size={16} className="text-purple-500" />;
   if (mimeType.startsWith('video/')) return <Video size={16} className="text-pink-500" />;
-  return <File size={16} className="text-gray-500" />;
+  return <FileIcon size={16} className="text-gray-500" />;
 };
 
 const formatFileSize = (bytes: number): string => {
@@ -53,11 +72,8 @@ const formatFileSize = (bytes: number): string => {
 
 const examplePrompts = [
   "Give me Roadmap for Mastering DSA With C language.",
-  "Describe the working principle of a 4-stroke petrol engine with a diagram.",
-  "What are the key data structures used in database indexing?",
-  "Summarize the basics of Kirchhoff's circuit laws.",
-  "Analyze my circuit diagram and suggest improvements.",
-  "Explain this PDF document in simple terms."
+  "Start voice query to ask questions without screen sharing",
+  "Help me understand code and diagrams through voice interaction"
 ];
 
 const GeminiStudyGuide = () => {
@@ -69,22 +85,627 @@ const GeminiStudyGuide = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
 
+  // Screen sharing state
+  const [screenState, setScreenState] = useState<ScreenState>({
+    isSharing: false,
+    mediaStream: null,
+    imageCapture: null,
+  });
+
+  // Voice state - FIXED: Now independent of screen sharing
+  const [voiceState, setVoiceState] = useState<VoiceState>({
+    isListening: false,
+    currentTranscript: '',
+    finalTranscript: '',
+    audioBlob: null,
+    isProcessing: false,
+  });
+
+  // UI states
+  // const [isAnnotationActive, setIsAnnotationActive] = useState(false);
+  // const [isWhiteScreenActive, setIsWhiteScreenActive] = useState(false);
+  const [annotationMode, setAnnotationMode] = useState<'whiteboard' | 'overlay' | null>(null);
+  
+  // FIXED: Annotation dropdown instead of full screen modal
+  const [showAnnotationDropdown, setShowAnnotationDropdown] = useState(false);
+  const annotationButtonRef = useRef<HTMLButtonElement>(null);
+  
+  const [currentAudioResponse, setCurrentAudioResponse] = useState<string>('');
+  const [floatingWidgetPosition, setFloatingWidgetPosition] = useState({ x: window.innerWidth - 280, y: 100 });
+
+  // FIXED: Independent voice listening (not tied to screen sharing)
+  const [isVoiceOnlyMode, setIsVoiceOnlyMode] = useState(false);
+
+  // Refs
   const activeConversation = conversations.find(c => c.id === activeConversationId);
   const activeHistory = activeConversation?.history ?? [];
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const voiceCaptureTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const screenStateRef = useRef<ScreenState>(screenState);
+  useEffect(() => { screenStateRef.current = screenState; }, [screenState]);
 
-  // --- LOCAL STORAGE & STATE SYNC ---
+
+
+  const waitForImageCapture = useCallback(async (timeout = 6000): Promise<ImageCapture | null> => {
+  const start = Date.now();
+  return new Promise((resolve) => {
+    const poll = () => {
+      if (screenStateRef.current.imageCapture) return resolve(screenStateRef.current.imageCapture);
+      if (Date.now() - start > timeout) return resolve(null);
+      setTimeout(poll, 150);
+    };
+    poll();
+  });
+}, []);
+
+
+  const promptUserToEnableScreenShare = () => {
+  setCurrentAudioResponse("I couldn't start screen sharing automatically — please click 'Share Screen' at the top of the page to allow analysis.");
+  // (You can replace this with a nicer toast/modal that focuses the Share button)
+};
+
+
+  // --- SCREEN SHARING FUNCTIONS ---
+  const handleStreamChange = (stream: MediaStream | null, imageCapture: ImageCapture | null) => {
+    setScreenState(prev => ({
+      ...prev,
+      mediaStream: stream,
+      imageCapture: imageCapture
+    }));
+
+    // Auto-start voice listening when screen sharing starts
+    if (stream && imageCapture) {
+      setVoiceState(prev => ({ ...prev, isListening: true }));
+    }
+  };
+
+  const handleSharingEnd = () => {
+    setScreenState({
+      isSharing: false,
+      mediaStream: null,
+      imageCapture: null,
+    });
+
+    // FIXED: Don't stop voice if in voice-only mode
+    if (!isVoiceOnlyMode) {
+      setVoiceState(prev => ({ 
+        ...prev, 
+        isListening: false,
+        currentTranscript: '',
+        finalTranscript: '',
+        audioBlob: null,
+        isProcessing: false
+      }));
+    }
+  };
+
+  const startScreenShare = () => {
+    setScreenState(prev => ({ ...prev, isSharing: true }));
+  };
+
+  const stopScreenShare = () => {
+    setScreenState(prev => ({ ...prev, isSharing: false }));
+    handleSharingEnd();
+  };
+
+  // FIXED: Optional screen capture (only when screen sharing is active)
+  const captureScreenFrame = async (): Promise<Blob | null> => {
+  if (!screenState.imageCapture || !screenState.isSharing) {
+    console.warn('Screen capture not available - screen sharing not active');
+    return null;
+  }
+  
+  if (!canvasRef.current) {
+    console.error('Canvas element not available');
+    return null;
+  }
+  
+  const canvas = canvasRef.current;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    console.error('Could not get canvas context');
+    return null;
+  }
+
+  try {
+    // Add retry logic for more reliable capture
+    let imageBitmap;
+    for (let i = 0; i < 3; i++) {
+      try {
+        imageBitmap = await (screenState.imageCapture as any).grabFrame();
+        break;
+      } catch (retryError) {
+        if (i === 2) throw retryError;
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+    }
+    
+    canvas.width = imageBitmap.width;
+    canvas.height = imageBitmap.height;
+    ctx.drawImage(imageBitmap, 0, 0);
+    imageBitmap.close();
+
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) {
+          resolve(blob);
+        } else {
+          reject(new Error('Failed to create blob from canvas.'));
+        }
+      }, 'image/png');
+    });
+  } catch (error) {
+    console.error("Error capturing screen frame:", error);
+    return null;
+  }
+};
+  // --- FIXED: VOICE HANDLING FUNCTIONS ---
+  const handleTranscriptUpdate = useCallback((transcript: string) => {
+    setVoiceState(prev => ({ ...prev, currentTranscript: transcript }));
+  }, []);
+
+//   // FIXED: Voice queries work with or without screen sharing
+//   const handleFinalTranscript = useCallback(async (transcript: string) => { // Becomes async
+//   if (!transcript.trim()) return;
+
+//   setVoiceState(prev => ({ ...prev, isProcessing: true }));
+
+//   // 1. CAPTURE IMMEDIATELY: Screen is captured instantly when you stop talking.
+//   let frameBlob: Blob | null = null;
+//   if (screenState.isSharing) {
+//     frameBlob = await captureScreenFrame(); 
+//   }
+  
+//   if (voiceCaptureTimeoutRef.current) {
+//     clearTimeout(voiceCaptureTimeoutRef.current);
+//   }
+  
+//   const delay = screenState.isSharing ? 1000 : 500; // Delay is now shorter
+
+//   // 2. PASS DATA: The already-captured frame is passed to the next function.
+//   voiceCaptureTimeoutRef.current = setTimeout(() => {
+//     processVoiceQuery(transcript, frameBlob);
+//   }, delay);
+
+// }, [
+//     screenState.isSharing, 
+//     processVoiceQuery, 
+//     captureScreenFrame
+// ]); // 3. CORRECT DEPENDENCIES: All used functions are now included.
+
+  const handleAudioRecorded = useCallback((audioBlob: Blob) => {
+    setVoiceState(prev => ({ ...prev, audioBlob }));
+  }, []);
+
+  // FIXED: Voice processing works independently of screen sharing
+
+// --- ENHANCED SEND MESSAGE FUNCTION ---
+  const sendMessageWithFiles = async (
+  messageText: string, 
+  additionalFiles: File[] = [], 
+  isVoiceQuery: boolean = false
+) => {
+  if (!messageText.trim() && files.length === 0 && additionalFiles.length === 0) return;
+  if (isLoading) return;
+
+  setIsLoading(true);
+
+  const allFiles = [...files, ...additionalFiles];
+  const userMessageText = messageText || (allFiles.length > 0 ? `Analyze ${allFiles.length} file(s): ${allFiles.map(f => f.name).join(', ')}` : "");
+  const userMessage: HistoryItem = { role: 'user', parts: [{ text: userMessageText }] };
+
+  let conversationId = activeConversationId;
+  let currentHistory = activeConversation?.history ?? [];
+
+  // --- CORE LOGIC FIX IS HERE ---
+  // This logic now correctly decides whether to create a new chat or update the existing one.
+  if (!conversationId) {
+    // 1. NO ACTIVE CHAT: Create a new conversation because one doesn't exist.
+    // This will happen for the very first message (typed or voice).
+    const newId = Date.now().toString();
+    const prefix = isVoiceQuery ? 'Voice: ' : screenState.isSharing ? 'Screen: ' : '';
+    const newTitle = prefix + userMessageText.substring(0, 40) + (userMessageText.length > 40 ? '...' : '');
+    const newConversation: Conversation = { 
+      id: newId, 
+      title: newTitle, 
+      history: [userMessage], // Start history with the user's message
+      createdAt: new Date()
+    };
+
+    setConversations(prev => [newConversation, ...prev]);
+    setActiveConversationId(newId);
+    
+    // Set the conversationId and history for the API call
+    conversationId = newId;
+    currentHistory = [userMessage];
+
+  } else {
+    // 2. CHAT IS ALREADY ACTIVE: Simply add the new message to the existing history.
+    // This is where all subsequent voice queries and typed messages will go.
+    currentHistory = [...currentHistory, userMessage];
+    updateConversationHistory(conversationId, currentHistory);
+  }
+  // --- END OF CORE LOGIC FIX ---
+
+  // Add a temporary "model is typing" message
+  updateConversationHistory(conversationId, [...currentHistory, { role: 'model', parts: [{ text: '' }] }]);
+
+  setMessage('');
+  setFiles([]);
+
+  const formData = new FormData();
+  
+  if (isVoiceQuery) {
+    formData.append('message', messageText + '\n\n[VOICE_QUERY: Please provide a concise but complete response suitable for audio playback. Focus on key insights and practical information.]');
+  } else {
+    formData.append('message', messageText);
+  }
+
+  // Use the up-to-date history for the API call
+  const historyForApi = currentHistory; 
+  const sanitizedHistory = historyForApi.map(h => ({
+    role: h.role === 'user' ? 'user' : 'model',
+    parts: Array.isArray(h.parts) && h.parts.length ? h.parts : [{ text: '' }]
+  }));
+  formData.append('history', JSON.stringify(sanitizedHistory));
+
+  allFiles.forEach(file => formData.append('files', file));
+
+  try {
+    const response = await fetch('http://localhost:5000/api/gemini/chat', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `Request failed with status ${response.status}`);
+    }
+
+    if (!response.body) {
+      throw new Error('No response body received');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let accumulatedResponse = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      accumulatedResponse += chunk;
+
+      const streamingHistory = [...historyForApi, { role: 'model', parts: [{ text: accumulatedResponse }] }];
+      updateConversationHistory(conversationId, streamingHistory);
+    }
+
+    if (isVoiceQuery && accumulatedResponse.trim()) {
+      const cleanResponse = accumulatedResponse
+        .replace(/\*\*(.*?)\*\*/g, '$1')
+        .replace(/\*(.*?)\*/g, '$1') 
+        .replace(/`(.*?)`/g, '$1')
+        .replace(/#{1,6}\s/g, '')
+        .replace(/💡.*$/gm, '')
+        .replace(/Follow-up suggestions?:.*$/gmi, '')
+        .replace(/\n{2,}/g, ' ')
+        .split(/[.!?]+/)
+        .slice(0, 5)
+        .join('. ') + '.';
+        
+      setCurrentAudioResponse(cleanResponse);
+    }
+
+  } catch (error) {
+    console.error('Error fetching stream:', error);
+    let errorMessage = 'Sorry, something went wrong. ';
+
+    if (error instanceof Error) {
+        errorMessage += error.message;
+    } else {
+        errorMessage += 'Unknown error occurred.';
+    }
+
+    const finalHistoryWithError = [...historyForApi, { role: 'model', parts: [{ text: errorMessage }] }];
+    updateConversationHistory(conversationId, finalHistoryWithError);
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+  
+  // Now accepts TWO arguments: transcript and frameBlob
+const processVoiceQuery = useCallback(async (transcript: string, frameBlob: Blob | null) => { 
+  if (isLoading) return;
+  setIsLoading(true);
+  
+  try {
+    let analysisFiles: File[] = [];
+    
+    if (frameBlob) { 
+      const frameFile = new File([frameBlob], 'voice-screen-capture.png', { type: 'image/png' });
+      analysisFiles.push(frameFile);
+    }
+    
+    if (voiceState.audioBlob) {
+      const audioFile = new File([voiceState.audioBlob], 'voice-query.webm', { type: voiceState.audioBlob.type });
+      analysisFiles.push(audioFile);
+    }
+    
+    const queryText = frameBlob ? `Analyze screen and respond to: ${transcript}` : `Voice query: ${transcript}`;
+    
+    // Send to backend and get response
+    await sendMessageWithFiles(queryText, analysisFiles, true);
+    
+  } catch (error) {
+    console.error('Error processing voice query:', error);
+    setCurrentAudioResponse('Failed to process voice query.');
+  } finally {
+    setIsLoading(false);
+    setVoiceState(prev => ({ 
+      ...prev, 
+      isProcessing: false, 
+      currentTranscript: '', 
+      finalTranscript: '', 
+      audioBlob: null 
+    }));
+  }
+}, [isLoading, voiceState.audioBlob, sendMessageWithFiles, activeConversationId]); // Note the corrected dependencies
+
+
+
+// FIXED: Voice queries work with or without screen sharing
+  // --- FIX: Always use screen when sharing ---
+const handleFinalTranscript = useCallback(async (transcript: string) => {
+  if (!transcript || !transcript.trim()) return;
+
+  // Keywords to detect a screen analysis request
+  const screenAnalysisKeywords = /analyz|screen|what's on|explain this|what do you see|this screen|current tab|this page/i;
+
+  // --- PRIMARY FIX ---
+  // If the user asks to analyze the screen BUT screen sharing is NOT active,
+  // give them a direct instruction instead of sending it to the AI.
+  if (screenAnalysisKeywords.test(transcript) && !screenState.isSharing) {
+    setCurrentAudioResponse("To analyze your screen, please start screen sharing and then use the 'Analyze' button. I am ready to help with any of your engineering questions!");
+    
+    // Reset voice state without processing further
+    setVoiceState(prev => ({ ...prev, isProcessing: false, currentTranscript: '', finalTranscript: '' }));
+    return; // Stop execution here
+  }
+  // --- END OF PRIMARY FIX ---
+
+  setVoiceState(prev => ({ ...prev, isProcessing: true }));
+
+  let frameBlob: Blob | null = null;
+
+  // If sharing is active, capture a frame
+  if (screenState.isSharing && screenState.imageCapture) {
+    try {
+      frameBlob = await captureScreenFrame();
+      console.log('Screen captured for voice query');
+    } catch (err) {
+      console.warn("Screen capture failed for voice query:", err);
+    }
+  }
+
+  // Process the query (with or without a screen capture)
+  try {
+    await processVoiceQuery(transcript, frameBlob);
+  } catch (error) {
+    console.error('Error processing voice query:', error);
+    setCurrentAudioResponse('Sorry, I could not process that request.');
+  } finally {
+    // This state is reset inside processVoiceQuery, but we ensure it happens
+    setVoiceState(prev => ({ ...prev, isProcessing: false }));
+  }
+
+}, [screenState.isSharing, screenState.imageCapture, captureScreenFrame, processVoiceQuery, activeConversationId]);
+
+  // FIXED: Independent voice toggle
+  const toggleVoiceListening = () => {
+    setVoiceState(prev => ({ 
+      ...prev, 
+      isListening: !prev.isListening,
+      currentTranscript: '',
+      finalTranscript: ''
+    }));
+  };
+
+  // FIXED: Voice-only mode toggle
+  const toggleVoiceOnlyMode = () => {
+    if (!voiceState.isListening) {
+      // Starting voice mode
+      setIsVoiceOnlyMode(true);
+      setVoiceState(prev => ({ ...prev, isListening: true }));
+      setCurrentAudioResponse("Voice mode activated. You can now ask questions and I'll automatically capture your screen if needed for analysis.");
+    } else {
+      // Stopping voice mode  
+      setIsVoiceOnlyMode(false);
+      setVoiceState(prev => ({ ...prev, isListening: false }));
+      setCurrentAudioResponse("Voice mode deactivated.");
+    }
+  };
+
+  // --- ANNOTATION HANDLERS ---
+  const handleOverlaySendToAI = async (imageBlob: Blob, audioBlob?: Blob, textQuery?: string) => {
+    const imageFile = new File([imageBlob], 'overlay-content.png', { type: 'image/png' });
+    const files: File[] = [imageFile];
+    if (audioBlob) {
+      const audioFile = new File([audioBlob], 'overlay-audio.webm', { type: audioBlob.type });
+      files.push(audioFile);
+    }
+    await sendMessageWithFiles(textQuery || 'Analyze this content', files, !!audioBlob);
+    setAnnotationMode(null);
+  };
+
+  // --- FLOATING WIDGET HANDLERS ---
+  const handleAnalyzeScreen = async () => {
+    if (!screenState.isSharing) return;
+    
+    try {
+      setIsLoading(true);
+      const frameBlob = await captureScreenFrame();
+      if (frameBlob) {
+        const frameFile = new File([frameBlob], 'manual-screen-capture.png', { type: 'image/png' });
+        await sendMessageWithFiles('Analyze this screen capture', [frameFile], false);
+      } else {
+        setCurrentAudioResponse('Failed to capture screen. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error analyzing screen:', error);
+      setCurrentAudioResponse('Failed to analyze screen. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // const handleOpenAnnotation = () => {
+  //   setIsAnnotationActive(true);
+  // };
+
+  // const handleOpenWhiteScreen = () => {
+  //   setIsWhiteScreenActive(true);
+  // };
+
+  // --- ENHANCED SEND MESSAGE FUNCTION ---
+  // const sendMessageWithFiles = async (
+  //   messageText: string, 
+  //   additionalFiles: File[] = [], 
+  //   isVoiceQuery: boolean = false
+  // ) => {
+  //   if (!messageText.trim() && files.length === 0 && additionalFiles.length === 0) return;
+  //   if (isLoading) return;
+
+  //   setIsLoading(true);
+
+  //   const allFiles = [...files, ...additionalFiles];
+  //   const userMessageText = messageText || (allFiles.length > 0 ? `Analyze ${allFiles.length} file(s): ${allFiles.map(f => f.name).join(', ')}` : "");
+  //   const userMessage: HistoryItem = { role: 'user', parts: [{ text: userMessageText }] };
+
+  //   let conversationId = activeConversationId;
+  //   let historyForApi = [...activeHistory, userMessage];
+
+  //   if (!conversationId) {
+  //     const newId = Date.now().toString();
+  //     const prefix = isVoiceQuery ? 'Voice: ' : screenState.isSharing ? 'Screen: ' : '';
+  //     const newTitle = prefix + userMessageText.substring(0, 40) + (userMessageText.length > 40 ? '...' : '');
+  //     const newConversation: Conversation = { 
+  //       id: newId, 
+  //       title: newTitle, 
+  //       history: [userMessage],
+  //       createdAt: new Date()
+  //     };
+
+  //     setConversations(prev => [newConversation, ...prev]);
+  //     setActiveConversationId(newId);
+  //     conversationId = newId;
+  //   } else {
+  //     updateConversationHistory(conversationId, historyForApi);
+  //   }
+
+  //   updateConversationHistory(conversationId, [...historyForApi, { role: 'model', parts: [{ text: '' }] }]);
+
+  //   setMessage('');
+  //   setFiles([]);
+
+  //   const formData = new FormData();
+    
+  //   if (isVoiceQuery) {
+  //     formData.append('message', messageText + '\n\n[VOICE_QUERY: Please provide a concise but complete response suitable for audio playback. Focus on key insights and practical information.]');
+  //   } else {
+  //     formData.append('message', messageText);
+  //   }
+
+  //   const sanitizedHistory = historyForApi.map(h => ({
+  //     role: h.role === 'user' ? 'user' : 'model',
+  //     parts: Array.isArray(h.parts) && h.parts.length ? h.parts : [{ text: '' }]
+  //   }));
+  //   formData.append('history', JSON.stringify(sanitizedHistory));
+
+  //   allFiles.forEach(file => formData.append('files', file));
+
+  //   try {
+  //     const response = await fetch('http://localhost:5000/api/gemini/chat', {
+  //       method: 'POST',
+  //       body: formData,
+  //     });
+
+  //     if (!response.ok) {
+  //       const errorData = await response.json().catch(() => ({}));
+  //       throw new Error(errorData.error || `Request failed with status ${response.status}`);
+  //     }
+
+  //     if (!response.body) {
+  //       throw new Error('No response body received');
+  //     }
+
+  //     const reader = response.body.getReader();
+  //     const decoder = new TextDecoder();
+  //     let accumulatedResponse = '';
+
+  //     while (true) {
+  //       const { done, value } = await reader.read();
+  //       if (done) break;
+
+  //       const chunk = decoder.decode(value, { stream: true });
+  //       accumulatedResponse += chunk;
+
+  //       const streamingHistory = [...historyForApi, { role: 'model', parts: [{ text: accumulatedResponse }] }];
+  //       updateConversationHistory(conversationId, streamingHistory);
+  //     }
+
+  //     // For voice queries, trigger audio response
+  //     if (isVoiceQuery && accumulatedResponse.trim()) {
+  //       setCurrentAudioResponse(accumulatedResponse.trim());
+  //     }
+
+  //   } catch (error) {
+  //     console.error('Error fetching stream:', error);
+  //     let errorMessage = 'Sorry, something went wrong. ';
+
+  //     if (error instanceof Error) {
+  //       if (error.message.includes('quota')) {
+  //         errorMessage += 'API quota exceeded. Please try again later.';
+  //       } else if (error.message.includes('safety')) {
+  //         errorMessage += 'Content was flagged by safety filters. Please try rephrasing your question.';
+  //       } else if (error.message.includes('file')) {
+  //         errorMessage += 'There was an issue processing your files. Please check the file formats and try again.';
+  //       } else {
+  //         errorMessage += error.message;
+  //       }
+  //     } else {
+  //       errorMessage += 'Unknown error occurred.';
+  //     }
+
+  //     const finalHistoryWithError = [...historyForApi, { role: 'model', parts: [{ text: errorMessage }] }];
+  //     updateConversationHistory(conversationId, finalHistoryWithError);
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
+
+  // --- EXISTING FUNCTIONS (localStorage, effects, handlers) ---
   useEffect(() => {
     try {
       const storedConversations = localStorage.getItem('chat_conversations');
       if (storedConversations) {
-        const parsed = JSON.parse(storedConversations);
-        const conversationsWithDates = parsed.map((conv: any) => ({
-          ...conv,
-          createdAt: new Date(conv.createdAt || Date.now())
-        }));
-        setConversations(conversationsWithDates);
+        const parsedConversations: unknown = JSON.parse(storedConversations);
+
+        if (Array.isArray(parsedConversations)) {
+          const typedConversations: Conversation[] = parsedConversations.map((conv: any) => ({
+            id: conv.id || '',
+            title: conv.title || 'Untitled Chat',
+            createdAt: new Date(conv.createdAt),
+            history: Array.isArray(conv.history) ? conv.history.map((h: any) => ({
+              role: h.role === 'user' ? 'user' : 'model',
+              parts: Array.isArray(h.parts) ? h.parts : [{ text: '' }],
+            })) : [],
+          }));
+          setConversations(typedConversations);
+        }
       }
     } catch (error) {
       console.error("Failed to parse conversations from localStorage", error);
@@ -105,7 +726,20 @@ const GeminiStudyGuide = () => {
     }
   }, [activeHistory, isLoading]);
 
-  // --- DRAG AND DROP HANDLERS ---
+  // FIXED: Close annotation dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showAnnotationDropdown && annotationButtonRef.current && 
+          !annotationButtonRef.current.contains(event.target as Node)) {
+        setShowAnnotationDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showAnnotationDropdown]);
+
+  // --- DRAG AND DROP, FILE HANDLING, CHAT HANDLERS (unchanged) ---
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(true);
@@ -124,10 +758,8 @@ const GeminiStudyGuide = () => {
     handleFileSelection(droppedFiles);
   };
 
-  // --- FILE HANDLING ---
   const handleFileSelection = (newFiles: File[]) => {
     const validFiles = newFiles.filter(file => {
-      // Check file size (100MB limit)
       if (file.size > 100 * 1024 * 1024) {
         alert(`File ${file.name} is too large. Maximum size is 100MB.`);
         return false;
@@ -135,7 +767,6 @@ const GeminiStudyGuide = () => {
       return true;
     });
 
-    // Limit total files to 10
     const totalFiles = files.length + validFiles.length;
     if (totalFiles > 10) {
       alert(`You can only upload up to 10 files at once. You're trying to add ${totalFiles} files.`);
@@ -163,7 +794,6 @@ const GeminiStudyGuide = () => {
     }
   };
 
-  // --- CHAT HANDLERS ---
   const handleNewChat = () => {
     setActiveConversationId(null);
     setMessage('');
@@ -212,108 +842,105 @@ const GeminiStudyGuide = () => {
 
   const sendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if ((!message.trim() && files.length === 0) || isLoading) return;
+    await sendMessageWithFiles(message, []);
+  };
 
-    setIsLoading(true);
-
-    const userMessageText = message || (files.length > 0 ? `Analyze ${files.length} file(s): ${files.map(f => f.name).join(', ')}` : "");
-    const userMessage: HistoryItem = { role: 'user', parts: [{ text: userMessageText }] };
+  // const handleAnnotationSendToAI = async (imageBlob: Blob, audioBlob?: Blob, textQuery?: string) => {
+  //   const imageFile = new File([imageBlob], 'annotation.png', { type: 'image/png' });
+  //   const files: File[] = [imageFile];
     
-    let conversationId = activeConversationId;
-    let historyForApi = [...activeHistory, userMessage];
+  //   if (audioBlob) {
+  //     const audioFile = new File([audioBlob], 'annotation-audio.webm', { type: audioBlob.type });
+  //     files.push(audioFile);
+  //   }
 
-    if (!conversationId) {
-      const newId = Date.now().toString();
-      const newTitle = userMessageText.substring(0, 40) + (userMessageText.length > 40 ? '...' : '');
-      const newConversation: Conversation = { 
-        id: newId, 
-        title: newTitle, 
-        history: [userMessage],
-        createdAt: new Date()
-      };
-      
-      setConversations(prev => [newConversation, ...prev]);
-      setActiveConversationId(newId);
-      conversationId = newId;
-    } else {
-      updateConversationHistory(conversationId, historyForApi);
+  //   await sendMessageWithFiles(textQuery || 'Analyze this annotation', files, !!audioBlob);
+  //   setIsAnnotationActive(false);
+  // };
+
+  // const handleCloseAnnotation = () => {
+  //   setIsAnnotationActive(false);
+  // };
+
+  // const handleCloseWhiteScreen = () => {
+  //   setIsWhiteScreenActive(false);
+  // };
+
+  const handleWhiteScreenSendToAI = async (imageBlob: Blob, audioBlob?: Blob, textQuery?: string) => {
+    const imageFile = new File([imageBlob], 'whiteboard.png', { type: 'image/png' });
+    const files: File[] = [imageFile];
+    
+    if (audioBlob) {
+      const audioFile = new File([audioBlob], 'whiteboard-audio.webm', { type: audioBlob.type });
+      files.push(audioFile);
     }
-    
-    updateConversationHistory(conversationId, [...historyForApi, { role: 'model', parts: [{ text: '' }] }]);
-    
-    const currentMessage = message;
-    const currentFiles = [...files];
-    setMessage('');
-    setFiles([]);
 
-    const formData = new FormData();
-    formData.append('message', currentMessage);
-    formData.append('history', JSON.stringify(historyForApi));
-    
-    // Append all files
-    currentFiles.forEach((file) => {
-      formData.append('files', file);
-    });
-
-    try {
-      const response = await fetch('http://localhost:5000/api/gemini/chat', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Request failed with status ${response.status}`);
-      }
-
-      if (!response.body) {
-        throw new Error('No response body received');
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let accumulatedResponse = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        
-        const chunk = decoder.decode(value, { stream: true });
-        accumulatedResponse += chunk;
-        
-        const streamingHistory = [...historyForApi, { role: 'model', parts: [{ text: accumulatedResponse }] }];
-        updateConversationHistory(conversationId, streamingHistory);
-      }
-
-    } catch (error) {
-      console.error('Error fetching stream:', error);
-      let errorMessage = 'Sorry, something went wrong. ';
-      
-      if (error instanceof Error) {
-        if (error.message.includes('quota')) {
-          errorMessage += 'API quota exceeded. Please try again later.';
-        } else if (error.message.includes('safety')) {
-          errorMessage += 'Content was flagged by safety filters. Please try rephrasing your question.';
-        } else if (error.message.includes('file')) {
-          errorMessage += 'There was an issue processing your files. Please check the file formats and try again.';
-        } else {
-          errorMessage += error.message;
-        }
-      } else {
-        errorMessage += 'Unknown error occurred.';
-      }
-      
-      const finalHistoryWithError = [...historyForApi, { role: 'model', parts: [{ text: errorMessage }] }];
-      updateConversationHistory(conversationId, finalHistoryWithError);
-    } finally {
-      setIsLoading(false);
-    }
+    await sendMessageWithFiles(textQuery || 'Analyze this drawing', files, !!audioBlob);
+    setIsWhiteScreenActive(false);
   };
 
   // --- JSX LAYOUT ---
   return (
     <div className="flex h-screen overflow-hidden bg-gradient-to-tr from-[#e9edfb] via-[#f6f8ff] to-[#e8f2fe] dark:from-[#1a2139] dark:via-[#232848] dark:to-[#19233b] transition-colors duration-500">
       
+      {/* Hidden canvas for screen capture */}
+      <canvas ref={canvasRef} style={{ display: 'none' }} />
+
+      {/* Screen Share Manager */}
+      <ScreenShareManager
+        isSharing={screenState.isSharing}
+        onStreamChange={handleStreamChange}
+        onSharingEnd={handleSharingEnd}
+      />
+
+      {/* FIXED: Voice Manager - Works independently */}
+      <VoiceManager
+        isListening={voiceState.isListening}
+        onTranscriptUpdate={handleTranscriptUpdate}
+        onFinalTranscript={handleFinalTranscript}
+        onAudioRecorded={handleAudioRecorded}
+        // autoListen={false}
+        // isScreenSharing={screenState.isSharing}
+      />
+
+      {/* Floating Widget - Shows when screen sharing */}
+      <FloatingWidget
+        isScreenSharing={screenState.isSharing}
+        isVoiceListening={voiceState.isListening}
+        currentTranscript={voiceState.currentTranscript}
+        isProcessing={voiceState.isProcessing || isLoading}
+        onToggleVoice={toggleVoiceListening}
+        onAnalyzeScreen={handleAnalyzeScreen}
+        onOpenAnnotation={() => setAnnotationMode('overlay')} // Now sets the correct state directly
+        onOpenWhiteScreen={() => setAnnotationMode('whiteboard')} // Now sets the correct state directly
+        onStopScreenShare={stopScreenShare}
+        position={floatingWidgetPosition}
+        onPositionChange={setFloatingWidgetPosition}
+      />
+
+      {/* Annotation Overlay */}
+      <AnnotationOverlay
+        isActive={annotationMode === 'overlay'}
+        onClose={() => setAnnotationMode(null)}
+        onSendToAI={handleOverlaySendToAI}
+      />
+      
+      <WhiteScreen
+        isActive={annotationMode === 'whiteboard'}
+        onClose={() => setAnnotationMode(null)}
+        onSendToAI={handleWhiteScreenSendToAI} // Correct handler passed
+      />
+
+      {/* Audio Response Manager */}
+      {currentAudioResponse && (
+        <AudioResponseManager
+          text={currentAudioResponse}
+          autoPlay={true}
+          onPlayEnd={() => setCurrentAudioResponse('')}
+          className="fixed bottom-4 right-4 z-40"
+        />
+      )}
+
       {/* --- Sidebar for Chat History --- */}
       <aside className="w-64 flex-shrink-0 bg-white/70 dark:bg-slate-900/70 border-r border-indigo-100 dark:border-slate-800 flex flex-col">
         <div className="p-4 border-b border-indigo-100 dark:border-slate-800">
@@ -382,7 +1009,6 @@ const GeminiStudyGuide = () => {
       </aside>
 
       {/* --- Main Chat Window --- */}
-      {/* --- Main Chat Window --- */}
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="flex-shrink-0 z-10 backdrop-blur-md bg-transparent border-b border-indigo-100 dark:border-slate-700 px-6 py-4 flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-3">
@@ -391,10 +1017,144 @@ const GeminiStudyGuide = () => {
               Engineering Hub — AI Study Guide
             </h1>
           </div>
-          <div className="text-sm text-slate-600 dark:text-slate-400">
-            Supports: PDF, Images, Documents, Audio, Video
+          <div className="flex items-center gap-4">
+            {/* Screen Share Controls */}
+            <div className="flex items-center gap-2">
+              {!screenState.isSharing ? (
+                <Button
+                  onClick={startScreenShare}
+                  variant="outline"
+                  size="sm"
+                  className="border-green-200 text-green-700 hover:bg-green-50 dark:border-green-800 dark:text-green-300 dark:hover:bg-green-900/20"
+                >
+                  <Monitor size={16} className="mr-2" />
+                  Share Screen
+                </Button>
+              ) : (
+                <Button
+                  onClick={stopScreenShare}
+                  variant="outline"
+                  size="sm"
+                  className="border-red-200 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/20"
+                >
+                  <Square size={16} className="mr-2" />
+                  Stop Sharing
+                </Button>
+              )}
+            </div>
+
+            {/* FIXED: Voice-only Mode Toggle */}
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={toggleVoiceOnlyMode}
+                variant="outline"
+                size="sm"
+                className={`transition-all duration-200 ${
+                  isVoiceOnlyMode || voiceState.isListening
+                    ? 'border-blue-200 text-blue-700 bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:bg-blue-900/20'
+                    : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'
+                }`}
+              >
+                {voiceState.isListening ? <MicOff size={16} className="mr-2" /> : <Mic size={16} className="mr-2" />}
+                {voiceState.isListening ? 'Stop Listening' : 'Start Voice Mode'}
+              </Button>
+              
+              {/* Screen status indicator */}
+              {voiceState.isListening && (
+                <span className="text-xs text-blue-600 dark:text-blue-400">
+                  {screenState.isSharing ? '🎤 + 📺 Ready' : '🎤 Voice Only'}
+                </span>
+              )}
+            </div>
+
+            {/* FIXED: Annotation Dropdown Button */}
+            <div className="relative">
+              {/* <Button 
+                ref={annotationButtonRef}
+                onClick={() => setShowAnnotationDropdown(!showAnnotationDropdown)} 
+                variant="outline" 
+                size="sm"
+                className="border-purple-200 text-purple-700 hover:bg-purple-50 dark:border-purple-800 dark:text-purple-300 dark:hover:bg-purple-900/20"
+              >
+                <Edit3 size={16} className="mr-2"/> 
+                Annotate
+                <ChevronDown size={14} className="ml-1" />
+              </Button> */}
+
+              {/* FIXED: Annotation Dropdown Menu */}
+              {showAnnotationDropdown && (
+                <div className="absolute top-full left-0 mt-1 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-700 z-50 min-w-48">
+                  <div className="p-2 space-y-1">
+                    <button
+                      onClick={() => {
+                        setAnnotationMode('overlay');
+                        setShowAnnotationDropdown(false);
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-md flex items-center gap-2 transition-colors"
+                    >
+                      <Edit3 size={14} className="text-purple-600 dark:text-purple-400" />
+                      Annotate on Tab
+                      <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">Highlight content</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setAnnotationMode('whiteboard');
+                        setShowAnnotationDropdown(false);
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-md flex items-center gap-2 transition-colors"
+                    >
+                      <FileImage size={14} className="text-blue-600 dark:text-blue-400" />
+                      Open Whiteboard
+                      <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">Draw freely</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="text-sm text-slate-600 dark:text-slate-400">
+              {isVoiceOnlyMode ? 'Voice Ready' : 'Voice + Screen + Files'}
+            </div>
           </div>
         </header>
+
+        {/* FIXED: Enhanced Status Alerts */}
+        {(screenState.isSharing || isVoiceOnlyMode) && (
+          <div className="px-6 py-2">
+            {screenState.isSharing && (
+              <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20 mb-2">
+                <div className="flex items-center gap-2">
+                  <Monitor className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  {voiceState.isListening && (
+                    <div className="h-4 w-4 text-blue-600 dark:text-blue-400 animate-pulse">🎤</div>
+                  )}
+                </div>
+                <AlertDescription className="text-green-800 dark:text-green-200">
+                  Screen sharing active with voice detection. 
+                  {voiceState.isProcessing && " Processing voice query..."}
+                  {voiceState.currentTranscript && ` Hearing: "${voiceState.currentTranscript}"`}
+                </AlertDescription>
+              </Alert>
+            )}
+            
+            {isVoiceOnlyMode && !screenState.isSharing && (
+              <Alert className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20">
+                <div className="flex items-center gap-2">
+                  <Mic className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  {voiceState.isListening && (
+                    <div className="h-4 w-4 text-blue-600 dark:text-blue-400 animate-pulse">🎤</div>
+                  )}
+                </div>
+                <AlertDescription className="text-blue-800 dark:text-blue-200">
+                  Voice-only mode active. 
+                  {voiceState.isProcessing && " Processing voice query..."}
+                  {voiceState.currentTranscript && ` Hearing: "${voiceState.currentTranscript}"`}
+                  {!voiceState.isListening && " Click 'Voice Mode' to start listening."}
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+        )}
       
         <div 
           className="flex-1 flex flex-col overflow-hidden"
@@ -423,7 +1183,7 @@ const GeminiStudyGuide = () => {
                 <ChatBubble key={index} role={item.role} content={item.parts[0].text} />
               ))}
               {isLoading && activeHistory.length > 0 && activeHistory[activeHistory.length-1].role === 'model' && activeHistory[activeHistory.length-1].parts[0].text === '' && (
-                 <ChatBubble role="model" content="Analyzing your files and preparing response..." />
+                 <ChatBubble role="model" content="Analyzing your content and preparing response..." />
               )}
               <div ref={messagesEndRef} />
             </div>
@@ -478,8 +1238,8 @@ const GeminiStudyGuide = () => {
                 </div>
               )}
 
-              {/* Example prompts */}
-              {(activeHistory.length === 0 || !activeConversationId) && message === "" && files.length === 0 && (
+              {/* FIXED: Enhanced example prompts */}
+              {(activeHistory.length === 0 || !activeConversationId) && message === "" && files.length === 0 && !screenState.isSharing && !isVoiceOnlyMode && (
                 <div className="mb-3 flex flex-wrap gap-2">
                   {examplePrompts.map((prompt, i) => (
                     <button 
@@ -512,7 +1272,7 @@ const GeminiStudyGuide = () => {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start">
                     <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
-                      <File size={16} className="mr-2" />
+                      <FileIcon size={16} className="mr-2" />
                       Upload Files
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
@@ -537,7 +1297,15 @@ const GeminiStudyGuide = () => {
                 <Input 
                   value={message} 
                   onChange={(e) => setMessage(e.target.value)} 
-                  placeholder={files.length > 0 ? "Ask about your files..." : "Ask your engineering question..."} 
+                  placeholder={
+                    isVoiceOnlyMode
+                      ? "Type message or use voice mode for voice queries..." 
+                      : screenState.isSharing 
+                        ? "Type message or use floating widget for screen analysis..." 
+                        : files.length > 0 
+                          ? "Ask about your files..." 
+                          : "Ask your engineering question..."
+                  } 
                   className="flex-1 rounded-full border-indigo-200 dark:border-slate-700 focus:ring-2 focus:ring-indigo-400 dark:focus:ring-indigo-600 px-4" 
                   disabled={isLoading}
                 />
@@ -555,15 +1323,24 @@ const GeminiStudyGuide = () => {
                 </Button>
               </form>
               
-              {/* Status info */}
-              {(files.length > 0 || isLoading) && (
-                <div className="mt-2 text-xs text-slate-500 dark:text-slate-400 text-center">
-                  {isLoading 
-                    ? "Processing your request..." 
-                    : `${files.length} file(s) ready to analyze`
-                  }
-                </div>
-              )}
+              {/* FIXED: Enhanced status info */}
+              <div className="mt-2 text-xs text-slate-500 dark:text-slate-400 text-center">
+                {isLoading ? (
+                  voiceState.isProcessing ? 
+                    "Processing voice query..." :
+                    screenState.isSharing ? 
+                      "Analyzing screen content and processing your request..." :
+                      "Processing your request..."
+                ) : isVoiceOnlyMode ? (
+                  voiceState.isListening ? 
+                    "Voice mode active - Listening for your query..." :
+                    "Voice mode ready - Click 'Voice Mode' to start listening"
+                ) : screenState.isSharing ? (
+                  "Screen sharing active - Use floating widget for quick analysis"
+                ) : files.length > 0 ? (
+                  `${files.length} file(s) ready to analyze`
+                ) : null}
+              </div>
             </div>
           </div>
         </div>
