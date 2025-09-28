@@ -77,7 +77,7 @@ const Index = () => {
           {/* Badge */}
           <div className="inline-flex items-center gap-2 bg-white/90 dark:bg-slate-800/90 border border-white/30 dark:border-slate-700 rounded-full px-6 py-2 mb-8 shadow-xl backdrop-blur-md">
             <Star className="w-4 h-4 text-yellow-500 fill-current" />
-            <span className="text-sm font-medium text-slate-800 dark:text-slate-200">Trusted by Aluminis</span>
+            <span className="text-sm font-medium text-slate-800 dark:text-slate-200">Trusted by Alumini</span>
           </div>
 
           {/* Main Heading */}
