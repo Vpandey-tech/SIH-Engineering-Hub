@@ -1,4 +1,3 @@
-// src/pages/Signup.tsx
 import { useState, useContext } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -17,13 +16,14 @@ import { auth, db } from "../firebaseClient";
 import {
   createUserWithEmailAndPassword,
   sendEmailVerification,
+  updateProfile,
 } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { AuthContext } from "../App";
 
 const VIDEO_SRC = "/videos/engineering-bg.mp4";
 
-const Signup = () => {
+export default function Signup() {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
@@ -42,7 +42,6 @@ const Signup = () => {
       setIsLoading(false);
       return;
     }
-
     if (password.length < 6) {
       toast.error("Password must be at least 6 characters long");
       setIsLoading(false);
@@ -50,30 +49,37 @@ const Signup = () => {
     }
 
     try {
-      // 1) Create user in Firebase
+      // 1) Create Firebase Auth user
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       const user = cred.user;
 
-      // 2) Save to Firestore with role
+      // 2) Update Auth profile with displayName
+      await updateProfile(user, { displayName: name });
+
+      // 3) Force reload so local user object has the displayName
+      await user.reload();
+      const refreshedUser = auth.currentUser;
+
+      // 4) Save to Firestore
       await setDoc(doc(db, "users", user.uid), {
         uid: user.uid,
         name,
         email,
-        role: "student", // default role
+        role: "student",
         createdAt: new Date().toISOString(),
       });
 
-      // 3) Send email verification
+      // 5) Send email verification
       await sendEmailVerification(user);
 
-      // 4) Update context
-      setUser(user);
+      // 6) Update global context with refreshed user
+      setUser(refreshedUser);
 
       toast.success("Signup successful! Please check your email to verify.", {
         duration: 5000,
       });
 
-      setTimeout(() => navigate("/login", { replace: true }), 1200);
+      setTimeout(() => navigate("/login", { replace: true }), 1500);
     } catch (error: any) {
       console.error("Signup error:", error);
       if (error.code === "auth/email-already-in-use") {
@@ -193,7 +199,11 @@ const Signup = () => {
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-400"
                   >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    {showPassword ? (
+                      <EyeOff className="w-5 h-5" />
+                    ) : (
+                      <Eye className="w-5 h-5" />
+                    )}
                   </button>
                 </div>
               </div>
@@ -223,6 +233,4 @@ const Signup = () => {
       </div>
     </div>
   );
-};
-
-export default Signup;
+}
