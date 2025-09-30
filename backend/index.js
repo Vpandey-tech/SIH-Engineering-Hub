@@ -31,7 +31,7 @@ app.get('/', (req, res) =>
 );
 
 app.use('/api', authRoutes);
-app.use('/api', resourcesRoutes);
+app.use('/api/folders', resourcesRoutes);
 app.use('/api', configRoutes);
 app.use('/api/gemini', geminiRoutes);
 app.use('/api/lms', LMSRoutes);

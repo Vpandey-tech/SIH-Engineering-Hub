@@ -81,7 +81,7 @@ const Index = () => {
           </div>
 
           {/* Main Heading */}
-          <h1 className="font-extrabold text-5xl md:text-7xl bg-gradient-to-r from-blue-700 via-purple-700 to-indigo-700 bg-clip-text text-transparent mb-8 drop-shadow-lg tracking-tighter animate-fade-in">
+          <h1 className="font-extrabold text-5xl md:text-7xl md:leading-tight bg-gradient-to-r from-blue-700 via-purple-700 to-indigo-700 bg-clip-text text-transparent mb-8 drop-shadow-lg tracking-tighter animate-fade-in">
             Engineering Hub
           </h1>
           
