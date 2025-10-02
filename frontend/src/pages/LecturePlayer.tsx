@@ -419,8 +419,11 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import API from "../services/api";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { CheckCircle, XCircle, Loader2, Award, BookOpen } from "lucide-react";
 
+// --- Type Definitions ---
 type Lecture = {
   id: string;
   title: string;
@@ -429,15 +432,39 @@ type Lecture = {
   thumbnailUrl?: string;
 };
 
+type QuizQuestion = {
+  id: string;
+  question: string;
+  options: string[];
+  correctAnswer: number;
+};
+
+type UserProgress = {
+  completed: boolean;
+  passedQuiz: boolean;
+  quizScore?: number;
+};
+
+// --- Helper to shuffle an array ---
+const shuffleArray = (array: any[]) => [...array].sort(() => Math.random() - 0.5);
+
 export default function LecturePlayer() {
   const { lectureId } = useParams<{ lectureId: string }>();
   const [lecture, setLecture] = useState<Lecture | null>(null);
+  const [progress, setProgress] = useState<UserProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [playing, setPlaying] = useState(false);
   const [playedSeconds, setPlayedSeconds] = useState(0);
   const [completed, setCompleted] = useState(false);
   const [embedMethod, setEmbedMethod] = useState(1);
   const [showMethodSwitcher, setShowMethodSwitcher] = useState(false);
+  // Quiz State
+  const [showQuiz, setShowQuiz] = useState(false);
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
+  const [userAnswers, setUserAnswers] = useState<Record<string, number>>({});
+  const [quizResult, setQuizResult] = useState<{ score: number; total: number; passed: boolean } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingQuiz, setIsLoadingQuiz] = useState(false);
 
   const progressInterval = useRef<NodeJS.Timeout | null>(null);
   const lastSavedRef = useRef<number>(0);
@@ -446,9 +473,16 @@ export default function LecturePlayer() {
     if (!lectureId) return;
 
     setLoading(true);
-    API.get(`/lectures/${lectureId}`)
-      .then((res) => setLecture(res.data))
-      .catch(() => toast.error("Failed to load lecture"))
+    Promise.all([
+      API.get(`/lectures/${lectureId}`),
+      API.get(`/lectures/${lectureId}/progress`),
+    ])
+      .then(([lectureRes, progressRes]) => {
+        setLecture(lectureRes.data);
+        setProgress(progressRes.data.progress);
+        setCompleted(progressRes.data.progress.completed);
+      })
+      .catch(() => toast.error("Failed to load lecture data"))
       .finally(() => setLoading(false));
 
     API.post(`/lectures/${lectureId}/view`).catch(console.error);
@@ -461,7 +495,10 @@ export default function LecturePlayer() {
         progressSeconds: Math.floor(seconds),
         completed: markComplete,
       });
-      if (markComplete) setCompleted(true);
+      if (markComplete) {
+        setCompleted(true);
+        setProgress(prev => ({ ...prev!, completed: true }));
+      }
     } catch (err) {
       console.error("saveProgress error", err);
     }
@@ -512,6 +549,45 @@ export default function LecturePlayer() {
     toast.success("Marked complete");
   };
 
+  const handleTakeTest = async () => {
+    setIsLoadingQuiz(true);
+    setShowQuiz(true);
+    setQuizResult(null);
+    setUserAnswers({});
+    try {
+      const res = await API.get(`/lectures/${lectureId}/quiz`);
+      const selectedQuestions = shuffleArray(res.data.questions).slice(0, 5).map(q => ({
+        ...q,
+        options: shuffleArray(q.options)
+      }));
+      setQuizQuestions(selectedQuestions);
+    } catch (err) {
+      toast.error("Failed to load the quiz. Please try again.");
+      setShowQuiz(false);
+    } finally {
+      setIsLoadingQuiz(false);
+    }
+  };
+
+  const handleSubmitQuiz = async () => {
+    if (Object.keys(userAnswers).length < quizQuestions.length) {
+      toast.info("Please answer all questions.");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const res = await API.post(`/lectures/${lectureId}/submit-quiz`, { answers: userAnswers });
+      setQuizResult(res.data);
+      if (res.data.passed) {
+        setProgress(prev => ({ ...prev!, passedQuiz: true, quizScore: res.data.score }));
+      }
+    } catch (err) {
+      toast.error("Failed to submit quiz.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   useEffect(() => {
     return () => {
       if (progressInterval.current) {
@@ -526,6 +602,7 @@ export default function LecturePlayer() {
   const youtubeId = lecture.youtubeId?.trim();
   const thumbnailUrl = lecture.thumbnailUrl || 
     (youtubeId ? `https://img.youtube.com/vi/${youtubeId}/maxresdefault.jpg` : null);
+  const quizPassed = progress?.passedQuiz ?? false;
 
   const renderVideoEmbed = () => {
     if (!youtubeId || !playing) return null;
@@ -576,16 +653,12 @@ export default function LecturePlayer() {
         <div className="relative w-full md:w-2/5 aspect-video rounded-xl overflow-hidden bg-gradient-to-br from-gray-900 to-gray-800 shadow-inner">
           {youtubeId ? (
             <>
-              {/* Video Embed */}
               {renderVideoEmbed()}
-
-              {/* Thumbnail Overlay */}
               {!playing && (
                 <div 
                   className="absolute inset-0 cursor-pointer group"
                   onClick={startVideo}
                 >
-                  {/* Thumbnail Image */}
                   {thumbnailUrl ? (
                     <div className="relative w-full h-full overflow-hidden">
                       <img
@@ -601,7 +674,6 @@ export default function LecturePlayer() {
                           }
                         }}
                       />
-                      {/* Dark overlay for better contrast */}
                       <div className="absolute inset-0 bg-black bg-opacity-20 group-hover:bg-opacity-10 transition-all duration-300"></div>
                     </div>
                   ) : (
@@ -612,8 +684,6 @@ export default function LecturePlayer() {
                       </div>
                     </div>
                   )}
-                  
-                  {/* Play Button */}
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="bg-red-600 bg-opacity-90 rounded-full w-20 h-20 flex items-center justify-center shadow-2xl transform group-hover:scale-110 group-hover:bg-opacity-100 transition-all duration-300">
                       <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
@@ -623,8 +693,6 @@ export default function LecturePlayer() {
                   </div>
                 </div>
               )}
-
-              {/* Method Switcher - Only show when video is playing and initially hidden */}
               {showMethodSwitcher && (
                 <div className="absolute top-3 right-3 z-30">
                   <div className="bg-black bg-opacity-80 rounded-lg p-2 backdrop-blur-sm">
@@ -643,7 +711,6 @@ export default function LecturePlayer() {
                         </button>
                       ))}
                     </div>
-                    {/* Hide button */}
                     <button
                       onClick={() => setShowMethodSwitcher(false)}
                       className="w-full mt-1 px-2 py-1 bg-gray-700 text-gray-300 text-xs rounded hover:bg-gray-600 transition-colors"
@@ -653,8 +720,6 @@ export default function LecturePlayer() {
                   </div>
                 </div>
               )}
-
-              {/* Show method switcher button when hidden */}
               {playing && !showMethodSwitcher && (
                 <div className="absolute top-3 right-3 z-30">
                   <button
@@ -667,8 +732,6 @@ export default function LecturePlayer() {
                   </button>
                 </div>
               )}
-
-              {/* Close button when playing */}
               {playing && (
                 <div className="absolute top-3 left-3 z-30">
                   <button
@@ -683,7 +746,6 @@ export default function LecturePlayer() {
               )}
             </>
           ) : (
-            /* No Video Available */
             <div className="absolute inset-0 bg-gray-800 flex items-center justify-center">
               <div className="text-gray-400 text-center">
                 <div className="text-5xl mb-4">🎥</div>
@@ -706,8 +768,6 @@ export default function LecturePlayer() {
                 </p>
               )}
             </div>
-
-            {/* Video Status */}
             {youtubeId && (
               <div className="flex items-center gap-3">
                 <div className={`w-3 h-3 rounded-full ${playing ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
@@ -716,8 +776,6 @@ export default function LecturePlayer() {
                 </span>
               </div>
             )}
-
-            {/* Play Button (when not playing) */}
             {!playing && youtubeId && (
               <button
                 onClick={startVideo}
@@ -733,7 +791,6 @@ export default function LecturePlayer() {
 
           {/* Progress Section */}
           <div className="space-y-4 pt-6 border-t border-gray-200 dark:border-gray-700">
-            {/* Progress Display */}
             {playedSeconds > 0 && (
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
@@ -752,8 +809,6 @@ export default function LecturePlayer() {
                 </div>
               </div>
             )}
-
-            {/* Actions */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="text-sm text-gray-500 dark:text-gray-400">
                 {playedSeconds > 0 && `Watched: ${Math.floor(playedSeconds)}s`}
@@ -765,22 +820,111 @@ export default function LecturePlayer() {
                     Completed
                   </span>
                 )}
+                {quizPassed && (
+                  <span className="ml-2 inline-flex items-center gap-1 text-green-600">
+                    <Award className="w-4 h-4" />
+                    Quiz Passed (Score: {progress?.quizScore ?? ''})
+                  </span>
+                )}
               </div>
-              <button
-                onClick={markCompleteClicked}
-                disabled={completed}
-                className={`px-6 py-2 rounded-lg font-semibold transition-all duration-300 ${
-                  completed
-                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 cursor-not-allowed"
-                    : "bg-indigo-600 text-white hover:bg-indigo-700 shadow-md hover:shadow-lg transform hover:scale-105"
-                }`}
-              >
-                {completed ? "✓ Completed" : "Mark Complete"}
-              </button>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button
+                  onClick={markCompleteClicked}
+                  disabled={completed}
+                  className={`px-6 py-2 rounded-lg font-semibold transition-all duration-300 ${
+                    completed
+                      ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 cursor-not-allowed"
+                      : "bg-indigo-600 text-white hover:bg-indigo-700 shadow-md hover:shadow-lg transform hover:scale-105"
+                  }`}
+                >
+                  {completed ? <CheckCircle className="mr-2 h-4 w-4" /> : <BookOpen className="mr-2 h-4 w-4" />}
+                  {completed ? "✓ Completed" : "Mark Complete"}
+                </Button>
+                <Button
+                  onClick={handleTakeTest}
+                  disabled={quizPassed || !completed}
+                  variant="outline"
+                  className="px-6 py-2"
+                >
+                  {quizPassed ? <Award className="mr-2 h-4 w-4" /> : null}
+                  {quizPassed ? `Passed (Score: ${progress?.quizScore ?? ''})` : "Take Test"}
+                </Button>
+              </div>
             </div>
+            <p className="text-xs text-center text-gray-500 dark:text-gray-400">
+              You must watch the lecture and pass the test (score 4/5 or better) to mark this lecture as complete.
+            </p>
           </div>
         </div>
       </Card>
+
+      {/* Quiz Modal */}
+      {showQuiz && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b">
+              <h2 className="text-2xl font-bold">Lecture Quiz: {lecture.title}</h2>
+            </div>
+            <div className="p-6 overflow-y-auto">
+              {isLoadingQuiz ? (
+                <div className="text-center p-8">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+                  <p>Loading Quiz...</p>
+                </div>
+              ) : quizResult ? (
+                <div className="text-center p-8">
+                  {quizResult.passed ? <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" /> : <XCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />}
+                  <h3 className="text-3xl font-bold mb-2">
+                    You Scored: {quizResult.score} / {quizResult.total}
+                  </h3>
+                  <p className={`text-xl font-semibold ${quizResult.passed ? "text-green-600" : "text-red-600"}`}>
+                    {quizResult.passed ? "Passed!" : "Try Again"}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {quizQuestions.map((q, index) => (
+                    <div key={q.id}>
+                      <p className="font-semibold mb-3">
+                        {index + 1}. {q.question}
+                      </p>
+                      <div className="space-y-2">
+                        {q.options.map((option, optIndex) => (
+                          <div
+                            key={optIndex}
+                            onClick={() => setUserAnswers(prev => ({ ...prev, [q.id]: optIndex }))}
+                            className={`p-3 border rounded-lg cursor-pointer transition ${
+                              userAnswers[q.id] === optIndex
+                                ? 'bg-indigo-100 border-indigo-500'
+                                : 'hover:bg-slate-50'
+                            }`}
+                          >
+                            {option}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="p-6 border-t flex justify-end gap-4">
+              <Button variant="ghost" onClick={() => setShowQuiz(false)}>
+                Close
+              </Button>
+              {quizResult ? (
+                <Button onClick={handleTakeTest} disabled={isLoadingQuiz}>
+                  {isLoadingQuiz ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Retake Test
+                </Button>
+              ) : (
+                <Button onClick={handleSubmitQuiz} disabled={isSubmitting}>
+                  {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Submit Answers
+                </Button>
+              )}
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

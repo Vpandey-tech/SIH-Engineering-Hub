@@ -1,4 +1,7 @@
 import { db, admin } from '../config/firebase.js';
+import { Innertube } from 'youtubei.js';
+import { generateQuizFromTranscript } from '../services/geminiQuizService.js';
+
 
 const LECTURES = 'lectures';
 const USER_PROGRESS_ROOT = 'userProgress'; 
@@ -215,6 +218,160 @@ export async function listUserProgress(req, res) {
     return res.json({ progress });
   } catch (err) {
     console.error('listUserProgress error', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+export async function generateQuiz(req, res) {
+  try {
+    const { id: lectureId } = req.params;
+    console.log(`[QUIZ] Starting quiz generation for lecture: ${lectureId}`);
+    
+    const lectureSnap = await lectureDocRef(lectureId).get();
+    if (!lectureSnap.exists) {
+      return res.status(404).json({ message: 'Lecture not found' });
+    }
+
+    const { youtubeId } = lectureSnap.data();
+    console.log(`[QUIZ] YouTube ID: ${youtubeId}`);
+    
+    if (!youtubeId) {
+      return res.status(400).json({ message: 'This lecture is missing a YouTube ID.' });
+    }
+
+    // Fetch transcript using youtubei.js
+    let transcriptText = '';
+    try {
+      console.log(`[QUIZ] Initializing YouTube client...`);
+      const youtube = await Innertube.create();
+      
+      console.log(`[QUIZ] Fetching video info...`);
+      const info = await youtube.getInfo(youtubeId);
+      
+      console.log(`[QUIZ] Getting transcript...`);
+      const transcriptData = await info.getTranscript();
+      
+      if (!transcriptData || !transcriptData.transcript) {
+        console.log(`[QUIZ] No transcript available`);
+        return res.status(400).json({ message: 'No transcript available for this video.' });
+      }
+
+      // Extract text from transcript
+      transcriptText = transcriptData.transcript.content.body.initial_segments
+        .map(segment => segment.snippet.text)
+        .join(' ');
+      
+      console.log(`[QUIZ] Transcript length: ${transcriptText.length} characters`);
+      
+      if (!transcriptText || transcriptText.length < 100) {
+        return res.status(400).json({ message: 'Transcript too short or empty.' });
+      }
+
+    } catch (error) {
+      console.error(`[QUIZ] Transcript fetch failed:`, error);
+      return res.status(400).json({ 
+        message: 'Could not fetch transcript. Video may not have captions or they may be disabled.',
+        error: error.message 
+      });
+    }
+
+    // Call AI Service
+    console.log(`[QUIZ] Calling Gemini API to generate questions...`);
+    const questions = await generateQuizFromTranscript(transcriptText);
+    console.log(`[QUIZ] Generated ${questions?.length || 0} questions`);
+
+    if (!questions || questions.length === 0) {
+      return res.status(500).json({ message: 'AI service generated no questions.' });
+    }
+
+    // Save questions to Firestore
+    const batch = db.batch();
+    const quizCollectionRef = lectureDocRef(lectureId).collection('quiz');
+    
+    questions.forEach((questionData) => {
+      const questionRef = quizCollectionRef.doc();
+      batch.set(questionRef, questionData);
+    });
+
+    await batch.commit();
+    console.log(`[QUIZ] Successfully saved to Firestore`);
+
+    return res.status(201).json({ message: `Successfully generated ${questions.length} questions!` });
+
+  } catch (err) {
+    console.error('[QUIZ] Error:', err);
+    return res.status(500).json({ 
+      message: 'An internal server error occurred', 
+      error: err.message 
+    });
+  }
+}
+
+export async function getQuiz(req, res) {
+  try {
+    const { id: lectureId } = req.params;
+    const quizSnap = await lectureDocRef(lectureId).collection('quiz').get();
+    
+    if (quizSnap.empty) {
+      return res.status(404).json({ message: 'No quiz found for this lecture.' });
+    }
+
+    const questions = quizSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return res.json({ questions });
+
+  } catch (err) {
+    console.error('getQuiz error', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+export async function submitQuiz(req, res) {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { id: lectureId } = req.params;
+    const { answers } = req.body; // Expects answers in format { questionId: selectedOptionIndex }
+
+    const quizSnap = await lectureDocRef(lectureId).collection('quiz').get();
+    if (quizSnap.empty) {
+      return res.status(404).json({ message: 'Quiz not found.' });
+    }
+
+    const correctAnswers = {};
+    quizSnap.docs.forEach(doc => {
+      correctAnswers[doc.id] = doc.data().correctAnswer;
+    });
+
+    let score = 0;
+    Object.keys(answers).forEach(questionId => {
+      if (correctAnswers[questionId] === answers[questionId]) {
+        score++;
+      }
+    });
+
+    const passed = score >= 4; // Passing score is 4 out of 5
+
+    // Save the result to the user's progress
+    const userLectureRef = db.collection('userProgress').doc(user.uid)
+      .collection('lectures').doc(lectureId);
+
+    await userLectureRef.set({
+      quizScore: score,
+      quizAttempts: admin.firestore.FieldValue.increment(1),
+      passedQuiz: passed,
+      quizLastAttempt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    return res.json({
+      score,
+      total: Object.keys(answers).length,
+      passed,
+      message: passed ? "Congratulations, you passed!" : "You can try again!"
+    });
+
+  } catch (err) {
+    console.error('submitQuiz error', err);
     return res.status(500).json({ error: err.message });
   }
 }

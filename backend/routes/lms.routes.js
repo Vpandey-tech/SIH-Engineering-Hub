@@ -13,6 +13,7 @@ router.post('/courses', verifyFirebaseToken, requireAdmin, coursesCtrl.createCou
 router.put('/courses/:id', verifyFirebaseToken, requireAdmin, coursesCtrl.updateCourse);
 router.delete('/courses/:id', verifyFirebaseToken, requireAdmin, coursesCtrl.deleteCourse);
 router.get('/admin/enrollments', verifyFirebaseToken, requireAdmin, coursesCtrl.getEnrollments);
+router.get('/youtube-search', verifyFirebaseToken, requireAdmin, coursesCtrl.searchYouTube);
 
 router.post('/courses/:courseId/enroll', verifyFirebaseToken, coursesCtrl.enrollCourse);
 

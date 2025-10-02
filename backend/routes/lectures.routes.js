@@ -16,7 +16,13 @@ router.get('/users/me/progress', verifyFirebaseToken, ctrl.listUserProgress);
 router.post('/', verifyFirebaseToken, requireAdmin, ctrl.createLecture);
 router.put('/:id', verifyFirebaseToken, requireAdmin, ctrl.updateLecture);
 router.delete('/:id', verifyFirebaseToken, requireAdmin, ctrl.deleteLecture);
+router.get('/:id/quiz', verifyFirebaseToken, ctrl.getQuiz);
+router.post('/:id/submit-quiz', verifyFirebaseToken, ctrl.submitQuiz);
 
 router.get('/:id', ctrl.getLecture);
+router.post('/:id/generate-quiz', verifyFirebaseToken, requireAdmin, ctrl.generateQuiz);
+
+router.get('/:id', ctrl.getLecture);
+
 
 export default router;

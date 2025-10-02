@@ -1,4 +1,6 @@
 import { db, admin } from '../config/firebase.js';
+import { google } from 'googleapis';
+
 
 const COURSES = 'courses';
 const LECTURES = 'lectures';
@@ -39,24 +41,52 @@ export async function getCourse(req, res) {
   }
 }
 
+
 export async function createCourse(req, res) {
   try {
-    const { title, description = '' } = req.body;
-    if (!title) return res.status(400).json({ message: 'Title required' });
+    const { title, description = '', lectures = [] } = req.body;
+    if (!title) return res.status(400).json({ message: 'Title is required' });
+    if (lectures.length === 0) return res.status(400).json({ message: 'At least one lecture is required' });
 
-    const ref = db.collection(COURSES).doc();
-    await ref.set({
+    const batch = db.batch();
+
+    const courseRef = db.collection(COURSES).doc();
+    batch.set(courseRef, {
       title,
       description,
+      thumbnail: lectures[0].thumbnailUrl,
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    return res.status(201).json({ message: 'Course created', id: ref.id });
+    lectures.forEach((lecture, index) => {
+      const lectureRef = db.collection(LECTURES).doc();
+      batch.set(lectureRef, {
+        courseId: courseRef.id,
+        title: lecture.title,
+        description: lecture.description,
+        videoUrl: `https://www.youtube.com/watch?v=${lecture.videoId}`,
+        
+        // --- THIS IS THE FIX ---
+        // Changed 'videoId' to 'youtubeId' to match your LecturePlayer.tsx component
+        youtubeId: lecture.videoId, 
+        
+        thumbnailUrl: lecture.thumbnailUrl,
+        order: index + 1,
+        isPublished: true,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    });
+
+    await batch.commit();
+
+    return res.status(201).json({ message: 'Course and lectures created successfully', id: courseRef.id });
+
   } catch (err) {
-    console.error('createCourse error', err);
+    console.error('createCourse with lectures error', err);
     return res.status(500).json({ message: 'Failed to create course', error: err.message });
   }
 }
+
 
 export async function updateCourse(req, res) {
   try {
@@ -197,5 +227,41 @@ export async function getEnrollments(req, res) {
   } catch (err) {
     console.error('getEnrollments error', err);
     return res.status(500).json({ error: err.message });
+  }
+}
+
+
+export async function searchYouTube(req, res) {
+  const { query } = req.query;
+  if (!query) {
+    return res.status(400).json({ message: 'Search query is required.' });
+  }
+
+  try {
+    const youtube = google.youtube({
+      version: 'v3',
+      auth: process.env.YOUTUBE_API_KEY,
+    });
+
+    const response = await youtube.search.list({
+      part: 'snippet',
+      q: query,
+      maxResults: 10, // We will fetch up to 10 results
+      type: 'video',
+    });
+
+    const results = response.data.items.map(item => ({
+      videoId: item.id.videoId,
+      title: item.snippet.title,
+      description: item.snippet.description,
+      thumbnailUrl: item.snippet.thumbnails.high.url,
+      channelTitle: item.snippet.channelTitle,
+    }));
+
+    return res.json({ results });
+
+  } catch (err) {
+    console.error('YouTube search error:', err.message);
+    return res.status(500).json({ message: 'Failed to search YouTube', error: err.message });
   }
 }
